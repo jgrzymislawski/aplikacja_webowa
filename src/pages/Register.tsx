@@ -9,8 +9,10 @@ export default function Register() {
 
         <form>
           <input type="text" placeholder="Imię" required />
+          <input type="text" placeholder="Nazwisko" required />
           <input type="email" placeholder="Email" required />
           <input type="password" placeholder="Hasło" required />
+          <input type="password" placeholder="Powtórz hasło" required />
 
           <button type="submit">Zarejestruj się</button>
         </form>

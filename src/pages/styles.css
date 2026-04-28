@@ -1,0 +1,73 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: linear-gradient(135deg, #0b1a2a, #050d18);
+}
+
+.layout {
+  display: flex;
+  height: 100vh;
+}
+
+.sidebar {
+  width: 220px;
+  background: #1e1e1e;
+  color: white;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 0px 40px 40px 0px;
+}
+
+.sidebar h2 {
+  margin-top: 25px;
+  margin-bottom: 150px;
+  font-size: 31px;
+}
+
+.menu {
+  list-style: none;
+  padding: 0;
+  flex-grow: 1;
+}
+
+.menu li {
+  margin: 12px 0;
+  cursor: pointer;
+  padding: 20px;
+  border-radius: 4px;
+  transition: 0.2s;
+}
+
+.menu li:hover {
+  background: #333;
+}
+
+.menu li.active {
+  background: #4a90e2;
+}
+
+.logout {
+  margin-top: auto;
+}
+
+.logout button {
+  width: 100%;
+  padding: 10px;
+  background: #e74c3c;
+  border: none;
+  color: white;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: 0.2s;
+}
+
+.logout button:hover {
+  background: #c0392b;
+}
+
+.content {
+  flex: 1;
+  padding: 30px;
+  background: linear-gradient(135deg, #0b1a2a, #050d18);
+}

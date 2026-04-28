@@ -17,6 +17,9 @@ export default function Login() {
         <p>
           Nie masz konta? <Link to="/register">Zarejestruj się</Link>
         </p>
+        <p>
+          <Link to="/resetpassword">Nie pamiętam hasła</Link>
+        </p>
       </div>
     </div>
   );
