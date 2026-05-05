@@ -6,7 +6,7 @@ function Home() {
   return (
     <div className="page">
       <header className="header">
-        <h1 className="logo">Expense Splitter</h1>
+        <h1 className="logo">Wydatkomat</h1>
         <button className="login-btn" onClick={() => navigate("/login")}>
           Zaloguj się
         </button>
