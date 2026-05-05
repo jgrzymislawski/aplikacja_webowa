@@ -114,49 +114,49 @@ const App: React.FC = () => {
   });
 
   const [notifications, setNotifications] = useState<Notification[]>([
-  {
-    id: 1,
-    title: "Nowy wydatek",
-    message: "Ola dodała wydatek: Zakupy spożywcze",
-    read: false,
-    time: "2 min temu",
-  },
+    {
+      id: 1,
+      title: "Nowy wydatek",
+      message: "Ola dodała wydatek: Zakupy spożywcze",
+      read: false,
+      time: "2 min temu",
+    },
 
-  {
-    id: 2,
-    title: "Rozliczenie",
-    message: "Kuba rozliczył wydatek Benzyna",
-    read: true,
-    time: "1 godz temu",
-  },
+    {
+      id: 2,
+      title: "Rozliczenie",
+      message: "Kuba rozliczył wydatek Benzyna",
+      read: true,
+      time: "1 godz temu",
+    },
 
-  {
-    id: 3,
-    title: "Nowy znajomy",
-    message: "Marek zaakceptował zaproszenie",
-    read: false,
-    time: "Wczoraj",
-  },
-]);
+    {
+      id: 3,
+      title: "Nowy znajomy",
+      message: "Marek zaakceptował zaproszenie",
+      read: false,
+      time: "Wczoraj",
+    },
+  ]);
 
-const toggleRead = (id: number) => {
-  setNotifications((prev) =>
-    prev.map((notification) =>
-      notification.id === id
-        ? {
-            ...notification,
-            read: !notification.read,
-          }
-        : notification,
-    ),
-  );
-};
+  const toggleRead = (id: number) => {
+    setNotifications((prev) =>
+      prev.map((notification) =>
+        notification.id === id
+          ? {
+              ...notification,
+              read: !notification.read,
+            }
+          : notification,
+      ),
+    );
+  };
 
-const removeNotification = (id: number) => {
-  setNotifications((prev) =>
-    prev.filter((notification) => notification.id !== id),
-  );
-};
+  const removeNotification = (id: number) => {
+    setNotifications((prev) =>
+      prev.filter((notification) => notification.id !== id),
+    );
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -210,25 +210,19 @@ const removeNotification = (id: number) => {
   };
 
   const filteredExpenses = expenses.filter((expense) => {
-  if (!startDate || !endDate) return true;
+    if (!startDate || !endDate) return true;
 
-  return (
-    expense.date >= startDate &&
-    expense.date <= endDate
+    return expense.date >= startDate && expense.date <= endDate;
+  });
+
+  const totalPayments = filteredExpenses.length;
+
+  const totalAmount = filteredExpenses.reduce(
+    (sum, expense) => sum + expense.amount,
+    0,
   );
-});
 
-const totalPayments = filteredExpenses.length;
-
-const totalAmount = filteredExpenses.reduce(
-  (sum, expense) => sum + expense.amount,
-  0,
-);
-
-const averagePerPayment =
-  totalPayments > 0
-    ? totalAmount / totalPayments
-    : 0;
+  const averagePerPayment = totalPayments > 0 ? totalAmount / totalPayments : 0;
 
   const renderContent = () => {
     switch (active) {
@@ -239,12 +233,8 @@ const averagePerPayment =
               <div>
                 <h1>WYDATKI</h1>
 
-                <p>
-                  Witaj w panelu głównym!
-                </p>
-                <p>
-                  Tu zobaczysz wszystkie swoje wydatki.
-                </p>
+                <p>Witaj w panelu głównym!</p>
+                <p>Tu zobaczysz wszystkie swoje wydatki.</p>
               </div>
 
               <button
@@ -285,128 +275,120 @@ const averagePerPayment =
             </div>
           </div>
         );
-
       case "settings":
-        case "settings":
-  return (
-    <div className="settings-page">
-      <div className="dashboard-top">
-        <div>
-          <h1>USTAWIENIA</h1>
+        return (
+          <div className="settings-page">
+            <div className="dashboard-top">
+              <div>
+                <h1>USTAWIENIA</h1>
 
-          <p>
-            Zarządzaj swoim profilem i bezpieczeństwem konta.
-          </p>
-        </div>
-      </div>
+                <p>Zarządzaj swoim profilem i bezpieczeństwem konta.</p>
+              </div>
+            </div>
 
-      <div className="settings-grid">
+            <div className="settings-grid">
+              {/* DANE UŻYTKOWNIKA */}
+              <div className="expense-card">
+                <div className="expense-card-header">
+                  <h3>Dane użytkownika</h3>
+                </div>
 
-        {/* DANE UŻYTKOWNIKA */}
-        <div className="expense-card">
-          <div className="expense-card-header">
-            <h3>Dane użytkownika</h3>
+                <form className="settings-form">
+                  <label>
+                    Imię
+                    <input
+                      type="text"
+                      className="settings-input"
+                      defaultValue="Kuba"
+                    />
+                  </label>
+
+                  <label>
+                    Nazwisko
+                    <input
+                      type="text"
+                      className="settings-input"
+                      defaultValue="Nowak"
+                    />
+                  </label>
+
+                  <label>
+                    Email
+                    <input
+                      type="email"
+                      className="settings-input disabled-input"
+                      value="kubanowak@gmail.com"
+                      disabled
+                    />
+                  </label>
+
+                  <label>
+                    Rola użytkownika
+                    <input
+                      type="text"
+                      className="settings-input disabled-input"
+                      value="Administrator"
+                      disabled
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    className="save-btn"
+                    onClick={() => alert("Dane zapisane")}
+                  >
+                    Zapisz zmiany
+                  </button>
+                </form>
+              </div>
+
+              {/* ZMIANA HASŁA */}
+              <div className="expense-card">
+                <div className="expense-card-header">
+                  <h3>Zmień hasło</h3>
+                </div>
+
+                <form className="settings-form">
+                  <input
+                    type="password"
+                    placeholder="Nowe hasło"
+                    className="settings-input"
+                  />
+
+                  <input
+                    type="password"
+                    placeholder="Powtórz hasło"
+                    className="settings-input"
+                  />
+
+                  <button
+                    className="save-btn"
+                    onClick={() => alert("Hasło zmienione")}
+                    type="button"
+                  >
+                    Zapisz hasło
+                  </button>
+                </form>
+              </div>
+
+              {/* USUŃ KONTO */}
+              <div className="expense-card danger-card">
+                <div className="expense-card-header">
+                  <h3>Usuń konto</h3>
+                </div>
+
+                <p className="expense-meta">Ta operacja jest nieodwracalna.</p>
+
+                <button
+                  className="delete-account-btn"
+                  onClick={() => alert("Konto usunięte")}
+                >
+                  Usuń konto
+                </button>
+              </div>
+            </div>
           </div>
-
-          <form className="settings-form">
-
-            <label>
-              Imię
-              <input
-                type="text"
-                className="settings-input"
-                defaultValue="Kuba"
-              />
-            </label>
-
-            <label>
-              Nazwisko
-              <input
-                type="text"
-                className="settings-input"
-                defaultValue="Nowak"
-              />
-            </label>
-
-            <label>
-              Email
-              <input
-                type="email"
-                className="settings-input disabled-input"
-                value="kubanowak@gmail.com"
-                disabled
-              />
-            </label>
-
-            <label>
-              Rola użytkownika
-              <input
-                type="text"
-                className="settings-input disabled-input"
-                value="Administrator"
-                disabled
-              />
-            </label>
-
-            <button
-              type="button"
-              className="save-btn"
-              onClick={() => alert("Dane zapisane")}
-            >
-              Zapisz zmiany
-            </button>
-          </form>
-        </div>
-
-        {/* ZMIANA HASŁA */}
-        <div className="expense-card">
-          <div className="expense-card-header">
-            <h3>Zmień hasło</h3>
-          </div>
-
-          <form className="settings-form">
-            <input
-              type="password"
-              placeholder="Nowe hasło"
-              className="settings-input"
-            />
-
-            <input
-              type="password"
-              placeholder="Powtórz hasło"
-              className="settings-input"
-            />
-
-            <button
-              className="save-btn"
-              onClick={() => alert("Hasło zmienione")}
-              type="button"
-            >
-              Zapisz hasło
-            </button>
-          </form>
-        </div>
-
-        {/* USUŃ KONTO */}
-        <div className="expense-card danger-card">
-          <div className="expense-card-header">
-            <h3>Usuń konto</h3>
-          </div>
-
-          <p className="expense-meta">
-            Ta operacja jest nieodwracalna.
-          </p>
-
-          <button
-            className="delete-account-btn"
-            onClick={() => alert("Konto usunięte")}
-          >
-            Usuń konto
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+        );
 
       case "friends":
         return (
@@ -458,195 +440,156 @@ const averagePerPayment =
         );
 
       case "stats":
-        case "stats":
-  return (
-    <div className="stats-page">
+        return (
+          <div className="stats-page">
+            <div className="dashboard-top">
+              <div>
+                <h1>STATYSTYKI</h1>
 
-      <div className="dashboard-top">
-        <div>
-          <h1>STATYSTYKI</h1>
-
-          <p>
-            Podsumowanie wydatków w wybranym okresie.
-          </p>
-        </div>
-      </div>
-
-      {/* FILTRY */}
-
-      <div className="stats-filters">
-
-  <div className="filter-group">
-    <label>Data od</label>
-
-    <input
-      type="date"
-      value={startDate}
-      onChange={(e) =>
-        setStartDate(e.target.value)
-      }
-    />
-  </div>
-
-  <div className="filter-group">
-    <label>Data do</label>
-
-    <input
-      type="date"
-      value={endDate}
-      onChange={(e) =>
-        setEndDate(e.target.value)
-      }
-    />
-  </div>
-
-  <div className="search-btn-wrapper">
-    <button
-      className="stats-search-btn"
-      onClick={() =>
-        alert("Wyniki zostały przefiltrowane")
-      }
-    >
-      Szukaj
-    </button>
-  </div>
-</div>
-
-      {/* KAFELKI */}
-
-      <div className="stats-grid">
-
-        <div className="stat-card">
-          <h3>Łączna liczba płatności</h3>
-
-          <span className="stat-value">
-            {totalPayments}
-          </span>
-
-          <p>
-            Total number of payments in the period.
-          </p>
-        </div>
-
-        <div className="stat-card">
-          <h3>Łączna kwota</h3>
-
-          <span className="stat-value">
-            {totalAmount.toFixed(2)} zł
-          </span>
-
-          <p>
-            Total amount of all payments in the period.
-          </p>
-        </div>
-
-        <div className="stat-card">
-          <h3>Średnia na płatność</h3>
-
-          <span className="stat-value">
-            {averagePerPayment.toFixed(2)} zł
-          </span>
-
-          <p>
-            Average amount per payment in the period.
-          </p>
-        </div>
-      </div>
-
-      {/* LISTA */}
-
-      <h2 className="section-title">
-        Wydatki w wybranym okresie
-      </h2>
-
-      <div className="expenses-grid">
-        {filteredExpenses.map((expense) => (
-          <div className="expense-card" key={expense.id}>
-            <div className="expense-card-header">
-              <h3>{expense.title}</h3>
-
-              <span className="expense-amount">
-                {expense.amount.toFixed(2)} zł
-              </span>
+                <p>Podsumowanie wydatków w wybranym okresie.</p>
+              </div>
             </div>
 
-            <p className="expense-meta">
-              Kategoria: {expense.category}
-            </p>
+            {/* FILTRY */}
 
-            <p className="expense-meta">
-              Zapłacił: {expense.paidBy}
-            </p>
+            <div className="stats-filters">
+              <div className="filter-group">
+                <label>Data od</label>
 
-            <p className="expense-meta">
-              Data: {expense.date}
-            </p>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+
+              <div className="filter-group">
+                <label>Data do</label>
+
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+
+              <div className="search-btn-wrapper">
+                <button
+                  className="stats-search-btn"
+                  onClick={() => alert("Wyniki zostały przefiltrowane")}
+                >
+                  Szukaj
+                </button>
+              </div>
+            </div>
+
+            {/* KAFELKI */}
+
+            <div className="stats-grid">
+              <div className="stat-card">
+                <h3>Łączna liczba płatności</h3>
+
+                <span className="stat-value">{totalPayments}</span>
+
+                <p>Total number of payments in the period.</p>
+              </div>
+
+              <div className="stat-card">
+                <h3>Łączna kwota</h3>
+
+                <span className="stat-value">{totalAmount.toFixed(2)} zł</span>
+
+                <p>Total amount of all payments in the period.</p>
+              </div>
+
+              <div className="stat-card">
+                <h3>Średnia na płatność</h3>
+
+                <span className="stat-value">
+                  {averagePerPayment.toFixed(2)} zł
+                </span>
+
+                <p>Average amount per payment in the period.</p>
+              </div>
+            </div>
+
+            {/* LISTA */}
+
+            <h2 className="section-title">Wydatki w wybranym okresie</h2>
+
+            <div className="expenses-grid">
+              {filteredExpenses.map((expense) => (
+                <div className="expense-card" key={expense.id}>
+                  <div className="expense-card-header">
+                    <h3>{expense.title}</h3>
+
+                    <span className="expense-amount">
+                      {expense.amount.toFixed(2)} zł
+                    </span>
+                  </div>
+
+                  <p className="expense-meta">Kategoria: {expense.category}</p>
+
+                  <p className="expense-meta">Zapłacił: {expense.paidBy}</p>
+
+                  <p className="expense-meta">Data: {expense.date}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        ))}
-      </div>
-    </div>
-  );
-
+        );
       case "notifications":
-        case "notifications":
-  return (
-    <div className="notifications-page">
-      <div className="dashboard-top">
-        <div>
-          <h1>POWIADOMIENIA</h1>
-
-          <p>
-            Tutaj znajdziesz wszystkie informacje dotyczące wydatków i znajomych.
-          </p>
-        </div>
-      </div>
-
-      <div className="notifications-list">
-        {notifications.map((notification) => (
-          <div
-            key={notification.id}
-            className={`notification-card ${
-              notification.read ? "read" : "unread"
-            }`}
-          >
-            <div className="notification-header">
+        return (
+          <div className="notifications-page">
+            <div className="dashboard-top">
               <div>
-                <h3>{notification.title}</h3>
+                <h1>POWIADOMIENIA</h1>
 
-                <p className="notification-time">
-                  {notification.time}
+                <p>
+                  Tutaj znajdziesz wszystkie informacje dotyczące wydatków i
+                  znajomych.
                 </p>
               </div>
-
-              <div className="notification-actions">
-                <button
-                  className="read-btn"
-                  onClick={() => toggleRead(notification.id)}
-                >
-                  {notification.read
-                    ? "Nieodczytane"
-                    : "Odczytane"}
-                </button>
-
-                <button
-                  className="delete-notification-btn"
-                  onClick={() =>
-                    removeNotification(notification.id)
-                  }
-                >
-                  Usuń
-                </button>
-              </div>
             </div>
 
-            <p className="notification-message">
-              {notification.message}
-            </p>
+            <div className="notifications-list">
+              {notifications.map((notification) => (
+                <div
+                  key={notification.id}
+                  className={`notification-card ${
+                    notification.read ? "read" : "unread"
+                  }`}
+                >
+                  <div className="notification-header">
+                    <div>
+                      <h3>{notification.title}</h3>
+
+                      <p className="notification-time">{notification.time}</p>
+                    </div>
+
+                    <div className="notification-actions">
+                      <button
+                        className="read-btn"
+                        onClick={() => toggleRead(notification.id)}
+                      >
+                        {notification.read ? "Nieodczytane" : "Odczytane"}
+                      </button>
+
+                      <button
+                        className="delete-notification-btn"
+                        onClick={() => removeNotification(notification.id)}
+                      >
+                        Usuń
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="notification-message">{notification.message}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        ))}
-      </div>
-    </div>
-  );
+        );
 
       default:
         return <p>Wybierz zakładkę z menu.</p>;
