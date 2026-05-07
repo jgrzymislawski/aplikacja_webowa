@@ -50,4 +50,4 @@ jobs:
           script: |
             set -e
             cd ~/app
-            docker compose restart es-frontend
+            make restart-frontend
