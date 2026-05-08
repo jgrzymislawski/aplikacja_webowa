@@ -152,12 +152,6 @@ const App: React.FC = () => {
     );
   };
 
-  const removeNotification = (id: number) => {
-    setNotifications((prev) =>
-      prev.filter((notification) => notification.id !== id),
-    );
-  };
-
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
@@ -168,6 +162,8 @@ const App: React.FC = () => {
       [name]: value,
     }));
   };
+  const [showFriendModal, setShowFriendModal] = useState(false);
+  const [friendSearch, setFriendSearch] = useState("");
 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
@@ -245,33 +241,74 @@ const App: React.FC = () => {
               </button>
             </div>
 
-            <h2 className="section-title">Ostatnie wydatki</h2>
+            {/* MOJE WYDATKI */}
+            <h2 className="section-title">Moje płatności</h2>
 
             <div className="expenses-grid">
-              {expenses.map((expense) => (
-                <div className="expense-card" key={expense.id}>
-                  <div className="expense-card-header">
-                    <h3>{expense.title}</h3>
+              {expenses
+                .filter((expense) => expense.paidBy === "Ja")
+                .map((expense) => (
+                  <div className="expense-card" key={expense.id}>
+                    <div className="expense-card-header">
+                      <h3>{expense.title}</h3>
 
-                    <span className="expense-amount">
-                      {expense.amount.toFixed(2)} zł
-                    </span>
+                      <span className="expense-amount">
+                        {expense.amount.toFixed(2)} zł
+                      </span>
+                    </div>
+
+                    <p className="expense-meta">
+                      Kategoria: {expense.category}
+                    </p>
+
+                    <p className="expense-meta">Zapłacił: {expense.paidBy}</p>
+
+                    <p className="expense-meta">Data: {expense.date}</p>
+
+                    <button
+                      className="delete-expense-btn"
+                      onClick={() => removeExpense(expense.id)}
+                    >
+                      Usuń wydatek
+                    </button>
                   </div>
+                ))}
+            </div>
 
-                  <p className="expense-meta">Kategoria: {expense.category}</p>
+            {/* MUSZĘ ZAPŁACIĆ */}
+            <h2 className="section-title debt-title">Muszę zapłacić</h2>
 
-                  <p className="expense-meta">Zapłacił: {expense.paidBy}</p>
+            <div className="expenses-grid">
+              {expenses
+                .filter((expense) => expense.paidBy !== "Ja")
+                .map((expense) => (
+                  <div className="expense-card debt-card" key={expense.id}>
+                    <div className="expense-card-header">
+                      <h3>{expense.title}</h3>
 
-                  <p className="expense-meta">Data: {expense.date}</p>
+                      <span className="expense-amount debt-amount">
+                        {expense.amount.toFixed(2)} zł
+                      </span>
+                    </div>
 
-                  <button
-                    className="delete-expense-btn"
-                    onClick={() => removeExpense(expense.id)}
-                  >
-                    Usuń wydatek
-                  </button>
-                </div>
-              ))}
+                    <p className="expense-meta">
+                      Kategoria: {expense.category}
+                    </p>
+
+                    <p className="expense-meta">
+                      Do oddania dla: {expense.paidBy}
+                    </p>
+
+                    <p className="expense-meta">Data: {expense.date}</p>
+
+                    <button
+                      className="delete-expense-btn"
+                      onClick={() => removeExpense(expense.id)}
+                    >
+                      Usuń wydatek
+                    </button>
+                  </div>
+                ))}
             </div>
           </div>
         );
@@ -370,7 +407,29 @@ const App: React.FC = () => {
                   </button>
                 </form>
               </div>
+              {/* DWUETAPOWE UWIERZYTELNIANIE */}
+              <div className="expense-card">
+                <div className="expense-card-header">
+                  <h3>Dwuetapowe uwierzytelnianie</h3>
+                </div>
 
+                <p className="expense-meta">
+                  Zabezpiecz konto dodatkowym kodem logowania.
+                </p>
+
+                <div className="twofa-box">
+                  <div>
+                    <p className="twofa-status">Status: Wyłączone</p>
+                  </div>
+
+                  <button
+                    className="twofa-btn"
+                    onClick={() => alert("2FA zostało włączone")}
+                  >
+                    Włącz 2FA
+                  </button>
+                </div>
+              </div>
               {/* USUŃ KONTO */}
               <div className="expense-card danger-card">
                 <div className="expense-card-header">
@@ -404,7 +463,7 @@ const App: React.FC = () => {
 
               <button
                 className="add-expense-btn"
-                onClick={() => alert("Dodawanie znajomego")}
+                onClick={() => setShowFriendModal(true)}
               >
                 + Dodaj znajomego
               </button>
@@ -483,23 +542,17 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* KAFELKI */}
-
             <div className="stats-grid">
               <div className="stat-card">
                 <h3>Łączna liczba płatności</h3>
 
                 <span className="stat-value">{totalPayments}</span>
-
-                <p>Total number of payments in the period.</p>
               </div>
 
               <div className="stat-card">
                 <h3>Łączna kwota</h3>
 
                 <span className="stat-value">{totalAmount.toFixed(2)} zł</span>
-
-                <p>Total amount of all payments in the period.</p>
               </div>
 
               <div className="stat-card">
@@ -508,8 +561,6 @@ const App: React.FC = () => {
                 <span className="stat-value">
                   {averagePerPayment.toFixed(2)} zł
                 </span>
-
-                <p>Average amount per payment in the period.</p>
               </div>
             </div>
 
@@ -574,13 +625,6 @@ const App: React.FC = () => {
                       >
                         {notification.read ? "Nieodczytane" : "Odczytane"}
                       </button>
-
-                      <button
-                        className="delete-notification-btn"
-                        onClick={() => removeNotification(notification.id)}
-                      >
-                        Usuń
-                      </button>
                     </div>
                   </div>
 
@@ -644,6 +688,46 @@ const App: React.FC = () => {
       </aside>
 
       <main className="content">{renderContent()}</main>
+
+      {/* MODAL ZNAJOMI */}
+      {showFriendModal && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowFriendModal(false)}
+        >
+          <div
+            className="modal friend-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2>Dodaj znajomego</h2>
+
+              <button
+                className="close-btn"
+                onClick={() => setShowFriendModal(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="friend-search-box">
+              <input
+                type="text"
+                placeholder="Wpisz email lub nazwę użytkownika"
+                value={friendSearch}
+                onChange={(e) => setFriendSearch(e.target.value)}
+              />
+
+              <button
+                className="search-friend-btn"
+                onClick={() => alert(`Szukasz: ${friendSearch}`)}
+              >
+                Zaproś
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
