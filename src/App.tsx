@@ -1,11 +1,18 @@
 import "./App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 import Home from "./pages/Home";
 import Main from "./pages/Main";
 import ResetPassword from "./pages/ResetPassword";
+import { useAuth } from "./context/useAuth";
+
+// Komponent który chroni trasy – niezalogowany użytkownik dostaje przekierowanie na /login
+function PrivateRoute({ children }: { children: React.ReactNode }) {
+  const { isLoggedIn } = useAuth();
+  return isLoggedIn ? children : <Navigate to="/login" />;
+}
 
 function App() {
   return (
@@ -14,8 +21,15 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/main" element={<Main />} />
         <Route path="/resetpassword" element={<ResetPassword />} />
+        <Route
+          path="/main"
+          element={
+            <PrivateRoute>
+              <Main />
+            </PrivateRoute>
+          }
+        />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>

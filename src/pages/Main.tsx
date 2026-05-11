@@ -1,5 +1,17 @@
 import React, { useState } from "react";
 import "./styles.css";
+import { useAuth } from "../context/useAuth";
+import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import {
+  getProfile,
+  updateProfile,
+  changePassword,
+  deleteAccount,
+  enable2FA,
+  confirm2FA,
+  disable2FA,
+} from "../api/profileService";
 
 type ActivePage =
   | "dashboard"
@@ -44,6 +56,115 @@ type Notification = {
 const App: React.FC = () => {
   const [active, setActive] = useState<ActivePage>("dashboard");
   const [showModal, setShowModal] = useState(false);
+  const { handleLogout } = useAuth();
+  const navigate = useNavigate();
+
+  const [profile, setProfile] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    role: "",
+    isTwoFactorAuthEnabled: false,
+  });
+  const [settingsForm, setSettingsForm] = useState({
+    firstName: "",
+    lastName: "",
+  });
+
+  const [passwordForm, setPasswordForm] = useState({
+    oldPassword: "",
+    newPassword: "",
+    repeatNewPassword: "",
+  });
+
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [twoFaCode, setTwoFaCode] = useState("");
+
+  useEffect(() => {
+    getProfile().then((data) => {
+      setProfile(data);
+      setSettingsForm({ firstName: data.firstName, lastName: data.lastName });
+    });
+  }, []);
+
+  const handleUpdateProfile = async () => {
+    try {
+      await updateProfile(settingsForm);
+      alert("Dane zapisane!");
+    } catch {
+      alert("Błąd podczas zapisywania danych.");
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (passwordForm.newPassword !== passwordForm.repeatNewPassword) {
+      alert("Hasła nie są takie same!");
+      return;
+    }
+    try {
+      await changePassword(passwordForm);
+      alert("Hasło zmienione!");
+      setPasswordForm({
+        oldPassword: "",
+        newPassword: "",
+        repeatNewPassword: "",
+      });
+    } catch {
+      alert("Błąd podczas zmiany hasła.");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (
+      !window.confirm(
+        "Czy na pewno chcesz usunąć konto? Tej operacji nie można cofnąć!",
+      )
+    )
+      return;
+    try {
+      await deleteAccount();
+      await logout();
+    } catch {
+      alert("Błąd podczas usuwania konta.");
+    }
+  };
+
+  const handleEnable2FA = async () => {
+    try {
+      const qr = await enable2FA();
+      setQrCode(qr);
+    } catch {
+      alert("Błąd podczas włączania 2FA.");
+    }
+  };
+
+  const handleConfirm2FA = async () => {
+    try {
+      await confirm2FA(twoFaCode);
+      alert("2FA zostało włączone!");
+      setQrCode(null);
+      setTwoFaCode("");
+      setProfile((prev) => ({ ...prev, isTwoFactorAuthEnabled: true }));
+    } catch {
+      alert("Nieprawidłowy kod. Spróbuj ponownie.");
+    }
+  };
+
+  const handleDisable2FA = async () => {
+    if (!window.confirm("Czy na pewno chcesz wyłączyć 2FA?")) return;
+    try {
+      await disable2FA();
+      alert("2FA zostało wyłączone.");
+      setProfile((prev) => ({ ...prev, isTwoFactorAuthEnabled: false }));
+    } catch {
+      alert("Błąd podczas wyłączania 2FA.");
+    }
+  };
+
+  const logout = async () => {
+    await handleLogout();
+    navigate("/login");
+  };
 
   const [expenses, setExpenses] = useState<Expense[]>([
     {
@@ -184,7 +305,7 @@ const App: React.FC = () => {
       title: form.title,
       amount: parseFloat(form.amount),
       category: form.category,
-      paidBy: form.paidBy,
+      paidBy: "Ja",
       date: form.date,
     };
 
@@ -336,7 +457,13 @@ const App: React.FC = () => {
                     <input
                       type="text"
                       className="settings-input"
-                      defaultValue="Kuba"
+                      value={settingsForm.firstName}
+                      onChange={(e) =>
+                        setSettingsForm((prev) => ({
+                          ...prev,
+                          firstName: e.target.value,
+                        }))
+                      }
                     />
                   </label>
 
@@ -345,7 +472,13 @@ const App: React.FC = () => {
                     <input
                       type="text"
                       className="settings-input"
-                      defaultValue="Nowak"
+                      value={settingsForm.lastName}
+                      onChange={(e) =>
+                        setSettingsForm((prev) => ({
+                          ...prev,
+                          lastName: e.target.value,
+                        }))
+                      }
                     />
                   </label>
 
@@ -354,7 +487,7 @@ const App: React.FC = () => {
                     <input
                       type="email"
                       className="settings-input disabled-input"
-                      value="kubanowak@gmail.com"
+                      value={profile.email}
                       disabled
                     />
                   </label>
@@ -364,7 +497,7 @@ const App: React.FC = () => {
                     <input
                       type="text"
                       className="settings-input disabled-input"
-                      value="Administrator"
+                      value={profile.role}
                       disabled
                     />
                   </label>
@@ -372,7 +505,7 @@ const App: React.FC = () => {
                   <button
                     type="button"
                     className="save-btn"
-                    onClick={() => alert("Dane zapisane")}
+                    onClick={handleUpdateProfile}
                   >
                     Zapisz zmiany
                   </button>
@@ -388,19 +521,45 @@ const App: React.FC = () => {
                 <form className="settings-form">
                   <input
                     type="password"
+                    placeholder="Stare hasło"
+                    className="settings-input"
+                    value={passwordForm.oldPassword}
+                    onChange={(e) =>
+                      setPasswordForm((prev) => ({
+                        ...prev,
+                        oldPassword: e.target.value,
+                      }))
+                    }
+                  />
+                  <input
+                    type="password"
                     placeholder="Nowe hasło"
                     className="settings-input"
+                    value={passwordForm.newPassword}
+                    onChange={(e) =>
+                      setPasswordForm((prev) => ({
+                        ...prev,
+                        newPassword: e.target.value,
+                      }))
+                    }
                   />
 
                   <input
                     type="password"
                     placeholder="Powtórz hasło"
                     className="settings-input"
+                    value={passwordForm.repeatNewPassword}
+                    onChange={(e) =>
+                      setPasswordForm((prev) => ({
+                        ...prev,
+                        repeatNewPassword: e.target.value,
+                      }))
+                    }
                   />
 
                   <button
                     className="save-btn"
-                    onClick={() => alert("Hasło zmienione")}
+                    onClick={handleChangePassword}
                     type="button"
                   >
                     Zapisz hasło
@@ -419,16 +578,60 @@ const App: React.FC = () => {
 
                 <div className="twofa-box">
                   <div>
-                    <p className="twofa-status">Status: Wyłączone</p>
+                    <p className="twofa-status">
+                      Status:{" "}
+                      {profile.isTwoFactorAuthEnabled
+                        ? "Włączone ✅"
+                        : "Wyłączone ❌"}
+                    </p>
                   </div>
 
-                  <button
-                    className="twofa-btn"
-                    onClick={() => alert("2FA zostało włączone")}
-                  >
-                    Włącz 2FA
-                  </button>
+                  {!profile.isTwoFactorAuthEnabled ? (
+                    <button className="twofa-btn" onClick={handleEnable2FA}>
+                      Włącz 2FA
+                    </button>
+                  ) : (
+                    <button
+                      className="delete-expense-btn"
+                      onClick={handleDisable2FA}
+                    >
+                      Wyłącz 2FA
+                    </button>
+                  )}
                 </div>
+
+                {/* QR kod do zeskanowania */}
+                {qrCode && (
+                  <div style={{ marginTop: "16px", textAlign: "center" }}>
+                    <p className="expense-meta">
+                      Zeskanuj kod QR w Google Authenticator:
+                    </p>
+                    <img
+                      src={qrCode}
+                      alt="QR kod 2FA"
+                      style={{
+                        width: "180px",
+                        margin: "12px auto",
+                        display: "block",
+                      }}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Wpisz kod z aplikacji (6 cyfr)"
+                      value={twoFaCode}
+                      onChange={(e) => setTwoFaCode(e.target.value)}
+                      className="settings-input"
+                      maxLength={6}
+                    />
+                    <button
+                      className="save-btn"
+                      onClick={handleConfirm2FA}
+                      style={{ marginTop: "8px" }}
+                    >
+                      Potwierdź 2FA
+                    </button>
+                  </div>
+                )}
               </div>
               {/* USUŃ KONTO */}
               <div className="expense-card danger-card">
@@ -440,7 +643,7 @@ const App: React.FC = () => {
 
                 <button
                   className="delete-account-btn"
-                  onClick={() => alert("Konto usunięte")}
+                  onClick={handleDeleteAccount}
                 >
                   Usuń konto
                 </button>
@@ -683,7 +886,7 @@ const App: React.FC = () => {
         </ul>
 
         <div className="logout">
-          <button onClick={() => alert("Wylogowano!")}>Wyloguj się</button>
+          <button onClick={logout}>Wyloguj się</button>
         </div>
       </aside>
 
