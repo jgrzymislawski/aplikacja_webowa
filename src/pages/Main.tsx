@@ -12,6 +12,13 @@ import {
   confirm2FA,
   disable2FA,
 } from "../api/profileService";
+import {
+  getFriends,
+  addFriend,
+  removeFriendApi,
+  acceptFriend,
+  rejectFriend,
+} from "../api/friendsService";
 
 type ActivePage =
   | "dashboard"
@@ -38,11 +45,12 @@ type ExpenseForm = {
 };
 
 type Friend = {
-  id: number;
-  name: string;
+  id: string;
+  firstName: string;
+  lastName: string;
   email: string;
   expenses: number;
-  activity: string;
+  status: "PENDING" | "ACCEPTED" | "REJECTED";
 };
 
 type Notification = {
@@ -60,6 +68,7 @@ const App: React.FC = () => {
   const navigate = useNavigate();
 
   const [profile, setProfile] = useState({
+    id: "",
     firstName: "",
     lastName: "",
     email: "",
@@ -193,35 +202,36 @@ const App: React.FC = () => {
     },
   ]);
 
-  const removeFriend = (id: number) => {
-    setFriends((prev) => prev.filter((friend) => friend.id !== id));
+  const handleAcceptFriend = async (id: string) => {
+    await acceptFriend(id);
+    setPendingFriends((prev) => prev.filter((f) => f.id !== id));
+    const updated = await getFriends("ACCEPTED");
+    setFriends(updated);
   };
 
-  const [friends, setFriends] = useState<Friend[]>([
-    {
-      id: 1,
-      name: "Kuba Nowak",
-      email: "kuba@gmail.com",
-      expenses: 12,
-      activity: "2 dni temu",
-    },
+  const handleRejectFriend = async (id: string) => {
+    await rejectFriend(id);
+    setPendingFriends((prev) => prev.filter((f) => f.id !== id));
+  };
 
-    {
-      id: 2,
-      name: "Ola Kowalska",
-      email: "ola@gmail.com",
-      expenses: 8,
-      activity: "Dzisiaj",
-    },
+  const removeFriend = async (id: string) => {
+    if (!window.confirm("Czy na pewno chcesz usunąć znajomego?")) return;
 
-    {
-      id: 3,
-      name: "Marek Wiśniewski",
-      email: "marek@gmail.com",
-      expenses: 5,
-      activity: "5 minut temu",
-    },
-  ]);
+    try {
+      await removeFriendApi(String(id));
+      setFriends((prev) => prev.filter((friend) => friend.id !== id));
+    } catch {
+      alert("Nie udało się usunąć znajomego.");
+    }
+  };
+
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [pendingFriends, setPendingFriends] = useState<Friend[]>([]);
+
+  useEffect(() => {
+    getFriends("ACCEPTED").then(setFriends);
+    getFriends("PENDING").then(setPendingFriends);
+  }, []);
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -233,6 +243,23 @@ const App: React.FC = () => {
     paidBy: "",
     date: "",
   });
+  const handleAddFriend = async () => {
+    if (!friendSearch) {
+      alert("Wpisz ID znajomego.");
+      return;
+    }
+
+    try {
+      await addFriend(friendSearch);
+      const updated = await getFriends();
+      setFriends(updated);
+      setShowFriendModal(false);
+      setFriendSearch("");
+      alert("Zaproszenie wysłane!");
+    } catch {
+      alert("Nie udało się wysłać zaproszenia.");
+    }
+  };
 
   const [notifications, setNotifications] = useState<Notification[]>([
     {
@@ -452,6 +479,16 @@ const App: React.FC = () => {
                 </div>
 
                 <form className="settings-form">
+                  <label>
+                    ID użytkownika
+                    <input
+                      type="text"
+                      className="settings-input disabled-input"
+                      value={profile.id}
+                      disabled
+                    />
+                  </label>
+
                   <label>
                     Imię
                     <input
@@ -678,16 +715,17 @@ const App: React.FC = () => {
               {friends.map((friend) => (
                 <div className="expense-card" key={friend.id}>
                   <div className="expense-card-header">
-                    <h3>{friend.name}</h3>
+                    <h3>
+                      {friend.firstName} {friend.lastName}
+                    </h3>
 
                     <span className="expense-amount">
-                      {friend.expenses} wydatków
+                      {friend.expenses ?? 0} wydatków
                     </span>
                   </div>
 
                   <p className="expense-meta">Email: {friend.email}</p>
-
-                  <p className="expense-meta">Aktywność: {friend.activity}</p>
+                  <p className="expense-meta">Status: {friend.status}</p>
 
                   <button
                     className="delete-expense-btn"
@@ -695,6 +733,45 @@ const App: React.FC = () => {
                   >
                     Usuń znajomego
                   </button>
+                </div>
+              ))}
+            </div>
+            <h2 className="section-title">Zaproszenia</h2>
+
+            <div className="expenses-grid">
+              {pendingFriends.length === 0 && (
+                <p className="expense-meta">Brak oczekujących zaproszeń.</p>
+              )}
+
+              {pendingFriends.map((friend) => (
+                <div className="expense-card" key={friend.id}>
+                  <div className="expense-card-header">
+                    <h3>
+                      {friend.firstName} {friend.lastName}
+                    </h3>
+
+                    <span className="expense-amount">Oczekujące</span>
+                  </div>
+
+                  <p className="expense-meta">Email: {friend.email}</p>
+
+                  <div
+                    style={{ display: "flex", gap: "8px", marginTop: "12px" }}
+                  >
+                    <button
+                      className="save-btn"
+                      onClick={() => handleAcceptFriend(friend.id)}
+                    >
+                      Akceptuj
+                    </button>
+
+                    <button
+                      className="delete-expense-btn"
+                      onClick={() => handleRejectFriend(friend.id)}
+                    >
+                      Odrzuć
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -916,15 +993,12 @@ const App: React.FC = () => {
             <div className="friend-search-box">
               <input
                 type="text"
-                placeholder="Wpisz email lub nazwę użytkownika"
+                placeholder="Wpisz id użytkownika"
                 value={friendSearch}
                 onChange={(e) => setFriendSearch(e.target.value)}
               />
 
-              <button
-                className="search-friend-btn"
-                onClick={() => alert(`Szukasz: ${friendSearch}`)}
-              >
+              <button className="search-friend-btn" onClick={handleAddFriend}>
                 Zaproś
               </button>
             </div>
