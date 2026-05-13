@@ -2,6 +2,9 @@ import React, { useState } from "react";
 import "./styles.css";
 import { useAuth } from "../context/useAuth";
 import { useNavigate } from "react-router-dom";
+import SockJS from "sockjs-client";
+import { Client } from "@stomp/stompjs";
+import { getNotifications, markAsRead } from "../api/notificationService";
 import { useEffect } from "react";
 import {
   getProfile,
@@ -54,7 +57,7 @@ type Friend = {
 };
 
 type Notification = {
-  id: number;
+  id: string;
   title: string;
   message: string;
   read: boolean;
@@ -66,7 +69,7 @@ const App: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const { handleLogout } = useAuth();
   const navigate = useNavigate();
-
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [profile, setProfile] = useState({
     id: "",
     firstName: "",
@@ -225,6 +228,42 @@ const App: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    const token = localStorage.getItem("accessToken");
+
+    const socket = new SockJS("http://localhost:8080/api/ws");
+
+    const stompClient = new Client({
+      webSocketFactory: () => socket as unknown as WebSocket,
+      connectHeaders: {
+        Authorization: `Bearer ${token}`,
+      },
+      debug: () => {},
+    });
+
+    stompClient.onConnect = () => {
+      stompClient.subscribe("/user/notifications", (msg: { body: string }) => {
+        const notification: Notification = JSON.parse(msg.body);
+        setNotifications((prev) => [notification, ...prev]);
+      });
+    };
+
+    stompClient.activate();
+
+    return () => stompClient.deactivate();
+  }, []);
+
+  useEffect(() => {
+    getNotifications().then(setNotifications);
+  }, []);
+
+  const handleMarkAsRead = async (id: string) => {
+    await markAsRead(id);
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
+    );
+  };
+
   const [friends, setFriends] = useState<Friend[]>([]);
   const [pendingFriends, setPendingFriends] = useState<Friend[]>([]);
 
@@ -259,45 +298,6 @@ const App: React.FC = () => {
     } catch {
       alert("Nie udało się wysłać zaproszenia.");
     }
-  };
-
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: 1,
-      title: "Nowy wydatek",
-      message: "Ola dodała wydatek: Zakupy spożywcze",
-      read: false,
-      time: "2 min temu",
-    },
-
-    {
-      id: 2,
-      title: "Rozliczenie",
-      message: "Kuba rozliczył wydatek Benzyna",
-      read: true,
-      time: "1 godz temu",
-    },
-
-    {
-      id: 3,
-      title: "Nowy znajomy",
-      message: "Marek zaakceptował zaproszenie",
-      read: false,
-      time: "Wczoraj",
-    },
-  ]);
-
-  const toggleRead = (id: number) => {
-    setNotifications((prev) =>
-      prev.map((notification) =>
-        notification.id === id
-          ? {
-              ...notification,
-              read: !notification.read,
-            }
-          : notification,
-      ),
-    );
   };
 
   const handleChange = (
@@ -872,43 +872,31 @@ const App: React.FC = () => {
       case "notifications":
         return (
           <div className="notifications-page">
-            <div className="dashboard-top">
-              <div>
-                <h1>POWIADOMIENIA</h1>
+            <h1>POWIADOMIENIA</h1>
 
-                <p>
-                  Tutaj znajdziesz wszystkie informacje dotyczące wydatków i
-                  znajomych.
-                </p>
-              </div>
-            </div>
-
-            <div className="notifications-list">
-              {notifications.map((notification) => (
+            <div className="expenses-grid">
+              {notifications.map((n) => (
                 <div
-                  key={notification.id}
-                  className={`notification-card ${
-                    notification.read ? "read" : "unread"
-                  }`}
+                  key={n.id}
+                  className={`expense-card ${n.read ? "read" : "unread"}`}
                 >
-                  <div className="notification-header">
-                    <div>
-                      <h3>{notification.title}</h3>
-
-                      <p className="notification-time">{notification.time}</p>
-                    </div>
-
-                    <div className="notification-actions">
-                      <button
-                        className="read-btn"
-                        onClick={() => toggleRead(notification.id)}
-                      >
-                        {notification.read ? "Nieodczytane" : "Odczytane"}
-                      </button>
-                    </div>
+                  <div className="expense-card-header">
+                    <h3>{n.title}</h3>
+                    <span className="expense-amount">
+                      {new Date(n.time).toLocaleString()}
+                    </span>
                   </div>
 
-                  <p className="notification-message">{notification.message}</p>
+                  <p className="expense-meta">{n.message}</p>
+
+                  {!n.read && (
+                    <button
+                      className="save-btn"
+                      onClick={() => handleMarkAsRead(n.id)}
+                    >
+                      Oznacz jako przeczytane
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
