@@ -1,11 +1,16 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import "./styles.css";
 import { useAuth } from "../context/useAuth";
 import { useNavigate } from "react-router-dom";
 import SockJS from "sockjs-client";
 import { Client } from "@stomp/stompjs";
 import { getNotifications, markAsRead } from "../api/notificationService";
-import { useEffect } from "react";
+import {
+  getPaymentStatistics,
+  getExpenseStatistics,
+} from "../api/statisticsService";
+import { getMyExpenses, createExpense } from "../api/expensesService";
+import { getPayments } from "../api/paymentsService";
 import {
   getProfile,
   updateProfile,
@@ -23,6 +28,9 @@ import {
   rejectFriend,
 } from "../api/friendsService";
 
+import type { Friend } from "../types/Friend";
+import type { Friendship } from "../types/Friendship";
+
 type ActivePage =
   | "dashboard"
   | "stats"
@@ -34,39 +42,38 @@ type Expense = {
   id: number;
   title: string;
   amount: number;
-  category: string;
-  paidBy: string;
   date: string;
+  participants: { userId: string }[];
+  creatorName?: string;
 };
 
 type ExpenseForm = {
   title: string;
   amount: string;
-  category: string;
-  paidBy: string;
+  description: string;
   date: string;
 };
 
-type Friend = {
+type User = {
   id: string;
+  email: string;
   firstName: string;
   lastName: string;
-  email: string;
-  expenses: number;
-  status: "PENDING" | "ACCEPTED" | "REJECTED";
 };
 
 type Notification = {
   id: string;
+  userId: string;
   title: string;
-  message: string;
-  read: boolean;
-  time: string;
+  body: string;
+  isRead: boolean;
+  createdAt: string;
 };
 
 const App: React.FC = () => {
   const [active, setActive] = useState<ActivePage>("dashboard");
   const [showModal, setShowModal] = useState(false);
+  const [showFriendModal, setShowFriendModal] = useState(false);
   const { handleLogout } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -78,6 +85,23 @@ const App: React.FC = () => {
     role: "",
     isTwoFactorAuthEnabled: false,
   });
+
+  const [user, setUser] = useState<User | null>(null);
+
+  const [myExpenses, setMyExpenses] = useState<Expense[]>([]);
+  const [payments, setPayments] = useState<Expense[]>([]);
+
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [pendingFriends, setPendingFriends] = useState<Friendship[]>([]);
+  const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
+
+  const [form, setForm] = useState<ExpenseForm>({
+    title: "",
+    amount: "",
+    description: "",
+    date: "",
+  });
+
   const [settingsForm, setSettingsForm] = useState({
     firstName: "",
     lastName: "",
@@ -92,12 +116,148 @@ const App: React.FC = () => {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [twoFaCode, setTwoFaCode] = useState("");
 
+  const [stats, setStats] = useState({
+    totalPayments: 0,
+    totalAmount: 0,
+    averagePerPayment: 0,
+  });
+
+  const [expenseStats, setExpenseStats] = useState({
+    totalExpenses: 0,
+    totalAmount: 0,
+    averagePerExpense: 0,
+  });
+
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  const [friendSearch, setFriendSearch] = useState("");
+
+  const closeModal = () => setShowModal(false);
+
+  const logout = async () => {
+    await handleLogout();
+    navigate("/login");
+  };
+
+  const loadExpenses = async () => {
+    try {
+      const my = await getMyExpenses();
+      const pay = await getPayments();
+
+      setMyExpenses(Array.isArray(my.content) ? my.content : []);
+      setPayments(Array.isArray(pay.content) ? pay.content : []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (active !== "dashboard") return;
+
+    const fetch = async () => {
+      try {
+        const my = await getMyExpenses();
+        const pay = await getPayments();
+
+        setMyExpenses(Array.isArray(my.content) ? my.content : []);
+        setPayments(Array.isArray(pay.content) ? pay.content : []);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    fetch();
+  }, [active]);
+
+  useEffect(() => {
+    const loadFriends = async () => {
+      const res: Friendship[] = await getFriends("ACCEPTED");
+
+      const mapped: Friend[] = res.map((f) => {
+        const isRequester = f.requester.id === profile.id;
+        const friendUser = isRequester ? f.recipient : f.requester;
+
+        return {
+          friendshipId: f.id,
+          id: friendUser.id,
+          email: friendUser.email,
+        };
+      });
+
+      setFriends(mapped);
+    };
+
+    loadFriends();
+  }, [profile.id]);
+
+  useEffect(() => {
+    getNotifications().then((res) => setNotifications(res.content ?? []));
+  }, []);
+
   useEffect(() => {
     getProfile().then((data) => {
       setProfile(data);
       setSettingsForm({ firstName: data.firstName, lastName: data.lastName });
+      setUser({
+        id: data.id,
+        email: data.email,
+        firstName: data.firstName,
+        lastName: data.lastName,
+      });
     });
   }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem("accessToken");
+    const socket = new SockJS("http://localhost:8080/api/ws");
+
+    const stompClient = new Client({
+      webSocketFactory: () => socket as unknown as WebSocket,
+      connectHeaders: {
+        Authorization: `Bearer ${token}`,
+      },
+      debug: () => {},
+    });
+
+    stompClient.onConnect = () => {
+      stompClient.subscribe("/user/notifications", (msg: { body: string }) => {
+        const notification: Notification = JSON.parse(msg.body);
+        setNotifications((prev) => [notification, ...prev]);
+      });
+    };
+
+    stompClient.activate();
+
+    return () => {
+      stompClient.deactivate();
+    };
+  }, []);
+
+  const handleMarkAsRead = async (id: string) => {
+    await markAsRead(id);
+
+    setNotifications((prev) =>
+      (prev ?? []).map((n) => (n.id === id ? { ...n, isRead: true } : n)),
+    );
+  };
+
+  const handleSearchStats = async () => {
+    if (!startDate || !endDate) {
+      alert("Podaj zakres dat!");
+      return;
+    }
+
+    try {
+      const paymentsStats = await getPaymentStatistics(startDate, endDate);
+      const expensesStats = await getExpenseStatistics(startDate, endDate);
+
+      setStats(paymentsStats);
+      setExpenseStats(expensesStats);
+    } catch {
+      alert("Błąd podczas pobierania statystyk.");
+    }
+  };
 
   const handleUpdateProfile = async () => {
     try {
@@ -173,38 +333,6 @@ const App: React.FC = () => {
     }
   };
 
-  const logout = async () => {
-    await handleLogout();
-    navigate("/login");
-  };
-
-  const [expenses, setExpenses] = useState<Expense[]>([
-    {
-      id: 1,
-      title: "Zakupy spożywcze",
-      amount: 124.5,
-      category: "Jedzenie",
-      paidBy: "Marek",
-      date: "2026-04-29",
-    },
-    {
-      id: 2,
-      title: "Obiad w restauracji",
-      amount: 86.0,
-      category: "Wspólne wyjście",
-      paidBy: "Ola",
-      date: "2026-04-28",
-    },
-    {
-      id: 3,
-      title: "Benzyna",
-      amount: 210.0,
-      category: "Transport",
-      paidBy: "Kuba",
-      date: "2026-04-27",
-    },
-  ]);
-
   const handleAcceptFriend = async (id: string) => {
     await acceptFriend(id);
     setPendingFriends((prev) => prev.filter((f) => f.id !== id));
@@ -217,71 +345,17 @@ const App: React.FC = () => {
     setPendingFriends((prev) => prev.filter((f) => f.id !== id));
   };
 
-  const removeFriend = async (id: string) => {
+  const removeFriend = async (friendshipId: string) => {
     if (!window.confirm("Czy na pewno chcesz usunąć znajomego?")) return;
 
     try {
-      await removeFriendApi(String(id));
-      setFriends((prev) => prev.filter((friend) => friend.id !== id));
+      await removeFriendApi(friendshipId);
+      setFriends((prev) => prev.filter((f) => f.friendshipId !== friendshipId));
     } catch {
       alert("Nie udało się usunąć znajomego.");
     }
   };
 
-  useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-
-    const socket = new SockJS("http://localhost:8080/api/ws");
-
-    const stompClient = new Client({
-      webSocketFactory: () => socket as unknown as WebSocket,
-      connectHeaders: {
-        Authorization: `Bearer ${token}`,
-      },
-      debug: () => {},
-    });
-
-    stompClient.onConnect = () => {
-      stompClient.subscribe("/user/notifications", (msg: { body: string }) => {
-        const notification: Notification = JSON.parse(msg.body);
-        setNotifications((prev) => [notification, ...prev]);
-      });
-    };
-
-    stompClient.activate();
-
-    return () => stompClient.deactivate();
-  }, []);
-
-  useEffect(() => {
-    getNotifications().then(setNotifications);
-  }, []);
-
-  const handleMarkAsRead = async (id: string) => {
-    await markAsRead(id);
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
-    );
-  };
-
-  const [friends, setFriends] = useState<Friend[]>([]);
-  const [pendingFriends, setPendingFriends] = useState<Friend[]>([]);
-
-  useEffect(() => {
-    getFriends("ACCEPTED").then(setFriends);
-    getFriends("PENDING").then(setPendingFriends);
-  }, []);
-
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-
-  const [form, setForm] = useState<ExpenseForm>({
-    title: "",
-    amount: "",
-    category: "",
-    paidBy: "",
-    date: "",
-  });
   const handleAddFriend = async () => {
     if (!friendSearch) {
       alert("Wpisz ID znajomego.");
@@ -290,7 +364,7 @@ const App: React.FC = () => {
 
     try {
       await addFriend(friendSearch);
-      const updated = await getFriends();
+      const updated = await getFriends("ACCEPTED");
       setFriends(updated);
       setShowFriendModal(false);
       setFriendSearch("");
@@ -310,63 +384,47 @@ const App: React.FC = () => {
       [name]: value,
     }));
   };
-  const [showFriendModal, setShowFriendModal] = useState(false);
-  const [friendSearch, setFriendSearch] = useState("");
 
-  const handleAddExpense = (e: React.FormEvent) => {
+  const handleAddExpense = async (
+    e: React.FormEvent<HTMLFormElement>,
+  ): Promise<void> => {
     e.preventDefault();
-
-    if (
-      !form.title ||
-      !form.amount ||
-      !form.category ||
-      !form.paidBy ||
-      !form.date
-    ) {
-      alert("Uzupełnij wszystkie pola.");
+    if (!user) {
+      alert("Brak danych użytkownika.");
       return;
     }
 
-    const newExpense: Expense = {
-      id: Date.now(),
-      title: form.title,
-      amount: parseFloat(form.amount),
-      category: form.category,
-      paidBy: "Ja",
-      date: form.date,
-    };
+    try {
+      // Zamiana DD.MM.YYYY → YYYY-MM-DD
+      const formatDate = (d: string) => {
+        if (d.includes(".")) {
+          const [day, month, year] = d.split(".");
+          return `${year}-${month}-${day}`;
+        }
+        return d; // jeśli input type="date", to już jest OK
+      };
 
-    setExpenses((prev) => [newExpense, ...prev]);
+      const payload = {
+        title: form.title,
+        description: form.description,
+        amount: Number(form.amount),
+        expenseDate: formatDate(form.date),
+        participants: [
+          { userId: user.id },
+          ...selectedFriends.map((id) => ({ userId: id })),
+        ],
+      };
 
-    setForm({
-      title: "",
-      amount: "",
-      category: "",
-      paidBy: "",
-      date: "",
-    });
-
-    setShowModal(false);
+      await createExpense(payload);
+      closeModal();
+      await loadExpenses();
+      setForm({ title: "", amount: "", description: "", date: "" });
+      setSelectedFriends([]);
+    } catch (err) {
+      console.error(err);
+      alert("Nie udało się dodać wydatku.");
+    }
   };
-
-  const removeExpense = (id: number) => {
-    setExpenses((prev) => prev.filter((expense) => expense.id !== id));
-  };
-
-  const filteredExpenses = expenses.filter((expense) => {
-    if (!startDate || !endDate) return true;
-
-    return expense.date >= startDate && expense.date <= endDate;
-  });
-
-  const totalPayments = filteredExpenses.length;
-
-  const totalAmount = filteredExpenses.reduce(
-    (sum, expense) => sum + expense.amount,
-    0,
-  );
-
-  const averagePerPayment = totalPayments > 0 ? totalAmount / totalPayments : 0;
 
   const renderContent = () => {
     switch (active) {
@@ -376,7 +434,6 @@ const App: React.FC = () => {
             <div className="dashboard-top">
               <div>
                 <h1>WYDATKI</h1>
-
                 <p>Witaj w panelu głównym!</p>
                 <p>Tu zobaczysz wszystkie swoje wydatki.</p>
               </div>
@@ -389,90 +446,39 @@ const App: React.FC = () => {
               </button>
             </div>
 
-            {/* MOJE WYDATKI */}
-            <h2 className="section-title">Moje płatności</h2>
+            <h2>Moje wydatki</h2>
+            {myExpenses.map((exp) => (
+              <div className="expense-card" key={exp.id}>
+                <h3>{exp.title}</h3>
+                <p>Kwota: {exp.amount} zł</p>
+                <p>Data: {exp.date}</p>
+                <p>Uczestnicy: {exp.participants.length}</p>
+              </div>
+            ))}
 
-            <div className="expenses-grid">
-              {expenses
-                .filter((expense) => expense.paidBy === "Ja")
-                .map((expense) => (
-                  <div className="expense-card" key={expense.id}>
-                    <div className="expense-card-header">
-                      <h3>{expense.title}</h3>
-
-                      <span className="expense-amount">
-                        {expense.amount.toFixed(2)} zł
-                      </span>
-                    </div>
-
-                    <p className="expense-meta">
-                      Kategoria: {expense.category}
-                    </p>
-
-                    <p className="expense-meta">Zapłacił: {expense.paidBy}</p>
-
-                    <p className="expense-meta">Data: {expense.date}</p>
-
-                    <button
-                      className="delete-expense-btn"
-                      onClick={() => removeExpense(expense.id)}
-                    >
-                      Usuń wydatek
-                    </button>
-                  </div>
-                ))}
-            </div>
-
-            {/* MUSZĘ ZAPŁACIĆ */}
-            <h2 className="section-title debt-title">Muszę zapłacić</h2>
-
-            <div className="expenses-grid">
-              {expenses
-                .filter((expense) => expense.paidBy !== "Ja")
-                .map((expense) => (
-                  <div className="expense-card debt-card" key={expense.id}>
-                    <div className="expense-card-header">
-                      <h3>{expense.title}</h3>
-
-                      <span className="expense-amount debt-amount">
-                        {expense.amount.toFixed(2)} zł
-                      </span>
-                    </div>
-
-                    <p className="expense-meta">
-                      Kategoria: {expense.category}
-                    </p>
-
-                    <p className="expense-meta">
-                      Do oddania dla: {expense.paidBy}
-                    </p>
-
-                    <p className="expense-meta">Data: {expense.date}</p>
-
-                    <button
-                      className="delete-expense-btn"
-                      onClick={() => removeExpense(expense.id)}
-                    >
-                      Usuń wydatek
-                    </button>
-                  </div>
-                ))}
-            </div>
+            <h2>Muszę zapłacić</h2>
+            {payments.map((pay) => (
+              <div className="expense-card" key={pay.id}>
+                <h3>{pay.title}</h3>
+                <p>Do oddania dla: {pay.creatorName}</p>
+                <p>Kwota: {pay.amount} zł</p>
+                <p>Data: {pay.date}</p>
+              </div>
+            ))}
           </div>
         );
+
       case "settings":
         return (
           <div className="settings-page">
             <div className="dashboard-top">
               <div>
                 <h1>USTAWIENIA</h1>
-
                 <p>Zarządzaj swoim profilem i bezpieczeństwem konta.</p>
               </div>
             </div>
 
             <div className="settings-grid">
-              {/* DANE UŻYTKOWNIKA */}
               <div className="expense-card">
                 <div className="expense-card-header">
                   <h3>Dane użytkownika</h3>
@@ -549,7 +555,6 @@ const App: React.FC = () => {
                 </form>
               </div>
 
-              {/* ZMIANA HASŁA */}
               <div className="expense-card">
                 <div className="expense-card-header">
                   <h3>Zmień hasło</h3>
@@ -580,7 +585,6 @@ const App: React.FC = () => {
                       }))
                     }
                   />
-
                   <input
                     type="password"
                     placeholder="Powtórz hasło"
@@ -603,7 +607,7 @@ const App: React.FC = () => {
                   </button>
                 </form>
               </div>
-              {/* DWUETAPOWE UWIERZYTELNIANIE */}
+
               <div className="expense-card">
                 <div className="expense-card-header">
                   <h3>Dwuetapowe uwierzytelnianie</h3>
@@ -637,7 +641,6 @@ const App: React.FC = () => {
                   )}
                 </div>
 
-                {/* QR kod do zeskanowania */}
                 {qrCode && (
                   <div style={{ marginTop: "16px", textAlign: "center" }}>
                     <p className="expense-meta">
@@ -670,7 +673,7 @@ const App: React.FC = () => {
                   </div>
                 )}
               </div>
-              {/* USUŃ KONTO */}
+
               <div className="expense-card danger-card">
                 <div className="expense-card-header">
                   <h3>Usuń konto</h3>
@@ -695,7 +698,6 @@ const App: React.FC = () => {
             <div className="dashboard-top">
               <div>
                 <h1>ZNAJOMI</h1>
-
                 <p>
                   Zarządzaj znajomymi i dodawaj osoby do wspólnych wydatków.
                 </p>
@@ -714,28 +716,18 @@ const App: React.FC = () => {
             <div className="expenses-grid">
               {friends.map((friend) => (
                 <div className="expense-card" key={friend.id}>
-                  <div className="expense-card-header">
-                    <h3>
-                      {friend.firstName} {friend.lastName}
-                    </h3>
-
-                    <span className="expense-amount">
-                      {friend.expenses ?? 0} wydatków
-                    </span>
-                  </div>
-
                   <p className="expense-meta">Email: {friend.email}</p>
-                  <p className="expense-meta">Status: {friend.status}</p>
 
                   <button
                     className="delete-expense-btn"
-                    onClick={() => removeFriend(friend.id)}
+                    onClick={() => removeFriend(friend.friendshipId)}
                   >
                     Usuń znajomego
                   </button>
                 </div>
               ))}
             </div>
+
             <h2 className="section-title">Zaproszenia</h2>
 
             <div className="expenses-grid">
@@ -743,31 +735,30 @@ const App: React.FC = () => {
                 <p className="expense-meta">Brak oczekujących zaproszeń.</p>
               )}
 
-              {pendingFriends.map((friend) => (
-                <div className="expense-card" key={friend.id}>
+              {pendingFriends.map((friendship) => (
+                <div className="expense-card" key={friendship.id}>
                   <div className="expense-card-header">
-                    <h3>
-                      {friend.firstName} {friend.lastName}
-                    </h3>
-
+                    <h3>Zaproszenie do znajomych</h3>
                     <span className="expense-amount">Oczekujące</span>
                   </div>
 
-                  <p className="expense-meta">Email: {friend.email}</p>
+                  <p className="expense-meta">
+                    Od: {friendship.requester.email}
+                  </p>
 
                   <div
                     style={{ display: "flex", gap: "8px", marginTop: "12px" }}
                   >
                     <button
                       className="save-btn"
-                      onClick={() => handleAcceptFriend(friend.id)}
+                      onClick={() => handleAcceptFriend(friendship.id)}
                     >
                       Akceptuj
                     </button>
 
                     <button
                       className="delete-expense-btn"
-                      onClick={() => handleRejectFriend(friend.id)}
+                      onClick={() => handleRejectFriend(friendship.id)}
                     >
                       Odrzuć
                     </button>
@@ -784,91 +775,55 @@ const App: React.FC = () => {
             <div className="dashboard-top">
               <div>
                 <h1>STATYSTYKI</h1>
-
-                <p>Podsumowanie wydatków w wybranym okresie.</p>
+                <p>Podsumowanie wydatków i płatności w wybranym okresie.</p>
               </div>
             </div>
 
-            {/* FILTRY */}
-
-            <div className="stats-filters">
-              <div className="filter-group">
-                <label>Data od</label>
-
+            <div className="date-filters">
+              <label>
+                Data od:
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                 />
-              </div>
+              </label>
 
-              <div className="filter-group">
-                <label>Data do</label>
-
+              <label>
+                Data do:
                 <input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                 />
-              </div>
+              </label>
 
-              <div className="search-btn-wrapper">
-                <button
-                  className="stats-search-btn"
-                  onClick={() => alert("Wyniki zostały przefiltrowane")}
-                >
-                  Szukaj
-                </button>
-              </div>
+              <button className="save-btn" onClick={handleSearchStats}>
+                Szukaj
+              </button>
             </div>
 
-            <div className="stats-grid">
-              <div className="stat-card">
-                <h3>Łączna liczba płatności</h3>
-
-                <span className="stat-value">{totalPayments}</span>
-              </div>
-
-              <div className="stat-card">
-                <h3>Łączna kwota</h3>
-
-                <span className="stat-value">{totalAmount.toFixed(2)} zł</span>
-              </div>
-
-              <div className="stat-card">
-                <h3>Średnia na płatność</h3>
-
-                <span className="stat-value">
-                  {averagePerPayment.toFixed(2)} zł
-                </span>
-              </div>
+            <div className="stats-summary">
+              <h2>Płatności</h2>
+              <p>Łączna liczba płatności: {stats.totalPayments}</p>
+              <p>Łączna kwota: {stats.totalAmount.toFixed(2)} zł</p>
+              <p>
+                Średnia na płatność: {stats.averagePerPayment.toFixed(2)} zł
+              </p>
             </div>
 
-            {/* LISTA */}
-
-            <h2 className="section-title">Wydatki w wybranym okresie</h2>
-
-            <div className="expenses-grid">
-              {filteredExpenses.map((expense) => (
-                <div className="expense-card" key={expense.id}>
-                  <div className="expense-card-header">
-                    <h3>{expense.title}</h3>
-
-                    <span className="expense-amount">
-                      {expense.amount.toFixed(2)} zł
-                    </span>
-                  </div>
-
-                  <p className="expense-meta">Kategoria: {expense.category}</p>
-
-                  <p className="expense-meta">Zapłacił: {expense.paidBy}</p>
-
-                  <p className="expense-meta">Data: {expense.date}</p>
-                </div>
-              ))}
+            <div className="stats-summary">
+              <h2>Wydatki</h2>
+              <p>Łączna liczba wydatków: {expenseStats.totalExpenses}</p>
+              <p>Łączna kwota: {expenseStats.totalAmount.toFixed(2)} zł</p>
+              <p>
+                Średnia na wydatek: {expenseStats.averagePerExpense.toFixed(2)}{" "}
+                zł
+              </p>
             </div>
           </div>
         );
+
       case "notifications":
         return (
           <div className="notifications-page">
@@ -878,18 +833,21 @@ const App: React.FC = () => {
               {notifications.map((n) => (
                 <div
                   key={n.id}
-                  className={`expense-card ${n.read ? "read" : "unread"}`}
+                  className={`expense-card ${n.isRead ? "read" : "unread"}`}
                 >
                   <div className="expense-card-header">
-                    <h3>{n.title}</h3>
-                    <span className="expense-amount">
-                      {new Date(n.time).toLocaleString()}
+                    <div className="expense-card-header">
+                      <h3>{n.title}</h3>
+                    </div>
+
+                    <span className="notification-date">
+                      {new Date(n.createdAt).toLocaleString()}
                     </span>
                   </div>
 
-                  <p className="expense-meta">{n.message}</p>
+                  <p className="expense-meta">{n.body}</p>
 
-                  {!n.read && (
+                  {!n.isRead && (
                     <button
                       className="save-btn"
                       onClick={() => handleMarkAsRead(n.id)}
@@ -957,7 +915,6 @@ const App: React.FC = () => {
 
       <main className="content">{renderContent()}</main>
 
-      {/* MODAL ZNAJOMI */}
       {showFriendModal && (
         <div
           className="modal-overlay"
@@ -1000,7 +957,7 @@ const App: React.FC = () => {
             <div className="modal-header">
               <h2>Nowy wydatek</h2>
 
-              <button className="close-btn" onClick={() => setShowModal(false)}>
+              <button className="close-btn" onClick={closeModal}>
                 ×
               </button>
             </div>
@@ -1016,6 +973,16 @@ const App: React.FC = () => {
                   placeholder="Np. Zakupy spożywcze"
                 />
               </label>
+              <label>
+                Opis
+                <input
+                  type="text"
+                  name="description"
+                  value={form.description}
+                  onChange={handleChange}
+                  placeholder="Np. Kolacja po konferencji"
+                />
+              </label>
 
               <label>
                 Kwota
@@ -1028,32 +995,28 @@ const App: React.FC = () => {
                 />
               </label>
 
-              <label>
-                Kategoria
-                <select
-                  name="category"
-                  value={form.category}
-                  onChange={handleChange}
-                >
-                  <option value="">Wybierz kategorię</option>
-                  <option value="Jedzenie">Jedzenie</option>
-                  <option value="Transport">Transport</option>
-                  <option value="Rozrywka">Rozrywka</option>
-                  <option value="Dom">Dom</option>
-                  <option value="Inne">Inne</option>
-                </select>
-              </label>
-
-              <label>
-                Zapłacił
-                <input
-                  type="text"
-                  name="paidBy"
-                  value={form.paidBy}
-                  onChange={handleChange}
-                  placeholder="Np. Ola"
-                />
-              </label>
+              <label>Uczestnicy</label>
+              <div className="participants-list">
+                {friends.map((friend) => (
+                  <label
+                    key={friend.id}
+                    style={{ display: "block", marginBottom: 4 }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedFriends.includes(friend.id)}
+                      onChange={() => {
+                        setSelectedFriends((prev) =>
+                          prev.includes(friend.id)
+                            ? prev.filter((id) => id !== friend.id)
+                            : [...prev, friend.id],
+                        );
+                      }}
+                    />
+                    ({friend.email})
+                  </label>
+                ))}
+              </div>
 
               <label>
                 Data
