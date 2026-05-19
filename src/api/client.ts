@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const client = axios.create({
-  baseURL: "/api",
+  baseURL: "http://localhost:8080/api",
   withCredentials: true,
 });
 
@@ -38,7 +38,7 @@ client.interceptors.response.use(
       } catch {
         // jeśli refresh też nie zadziałał – wyloguj użytkownika
         localStorage.removeItem("accessToken");
-        window.location.href = "/login";
+        return Promise.reject(error);
       }
     }
 

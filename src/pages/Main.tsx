@@ -2,9 +2,7 @@ import React, { useEffect, useState } from "react";
 import "./styles.css";
 import { useAuth } from "../context/useAuth";
 import { useNavigate } from "react-router-dom";
-import SockJS from "sockjs-client";
-import { Client } from "@stomp/stompjs";
-import { getNotifications, markAsRead } from "../api/notificationService";
+import { useNotifications } from "../hooks/useNotifications";
 import {
   getPaymentStatistics,
   getExpenseStatistics,
@@ -61,22 +59,18 @@ type User = {
   lastName: string;
 };
 
-type Notification = {
-  id: string;
-  userId: string;
-  title: string;
-  body: string;
-  isRead: boolean;
-  createdAt: string;
-};
-
 const App: React.FC = () => {
   const [active, setActive] = useState<ActivePage>("dashboard");
   const [showModal, setShowModal] = useState(false);
   const [showFriendModal, setShowFriendModal] = useState(false);
   const { handleLogout } = useAuth();
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const { notifications, markAsRead } = useNotifications();
+
+  const handleMarkAsRead = (id: string) => {
+    markAsRead(id);
+  };
+
   const [profile, setProfile] = useState({
     id: "",
     firstName: "",
@@ -87,10 +81,8 @@ const App: React.FC = () => {
   });
 
   const [user, setUser] = useState<User | null>(null);
-
   const [myExpenses, setMyExpenses] = useState<Expense[]>([]);
   const [payments, setPayments] = useState<Expense[]>([]);
-
   const [friends, setFriends] = useState<Friend[]>([]);
   const [pendingFriends, setPendingFriends] = useState<Friendship[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
@@ -171,6 +163,7 @@ const App: React.FC = () => {
   }, [active]);
 
   useEffect(() => {
+    if (!localStorage.getItem("accessToken")) return;
     const loadFriends = async () => {
       const res: Friendship[] = await getFriends("ACCEPTED");
 
@@ -192,10 +185,7 @@ const App: React.FC = () => {
   }, [profile.id]);
 
   useEffect(() => {
-    getNotifications().then((res) => setNotifications(res.content ?? []));
-  }, []);
-
-  useEffect(() => {
+    if (!localStorage.getItem("accessToken")) return;
     getProfile().then((data) => {
       setProfile(data);
       setSettingsForm({ firstName: data.firstName, lastName: data.lastName });
@@ -207,40 +197,6 @@ const App: React.FC = () => {
       });
     });
   }, []);
-
-  useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-    const socket = new SockJS("http://localhost:8080/api/ws");
-
-    const stompClient = new Client({
-      webSocketFactory: () => socket as unknown as WebSocket,
-      connectHeaders: {
-        Authorization: `Bearer ${token}`,
-      },
-      debug: () => {},
-    });
-
-    stompClient.onConnect = () => {
-      stompClient.subscribe("/user/notifications", (msg: { body: string }) => {
-        const notification: Notification = JSON.parse(msg.body);
-        setNotifications((prev) => [notification, ...prev]);
-      });
-    };
-
-    stompClient.activate();
-
-    return () => {
-      stompClient.deactivate();
-    };
-  }, []);
-
-  const handleMarkAsRead = async (id: string) => {
-    await markAsRead(id);
-
-    setNotifications((prev) =>
-      (prev ?? []).map((n) => (n.id === id ? { ...n, isRead: true } : n)),
-    );
-  };
 
   const handleSearchStats = async () => {
     if (!startDate || !endDate) {

@@ -17,6 +17,7 @@ export default function Login() {
   const [twoFaCode, setTwoFaCode] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log("SUBMIT FIRED");
     e.preventDefault();
     setError("");
     setLoading(true);
@@ -47,6 +48,7 @@ export default function Login() {
       setLoading(false);
     }
   };
+  console.log("LOGIN RENDER");
 
   return (
     <div className="auth-container">
@@ -57,18 +59,22 @@ export default function Login() {
             <form onSubmit={handleSubmit}>
               <input
                 type="email"
+                name="email"
                 placeholder="Email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
+
               <input
                 type="password"
+                name="password"
                 placeholder="Hasło"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+
               {error && (
                 <p style={{ color: "red", fontSize: "14px" }}>{error}</p>
               )}
