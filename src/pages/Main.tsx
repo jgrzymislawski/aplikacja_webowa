@@ -36,14 +36,14 @@ type ActivePage =
   | "notifications"
   | "settings";
 
-type Expense = {
-  id: number;
+export type Expense = {
+  id: string;
   title: string;
-  amount: number;
-  date: string;
-  participants: { userId: string }[];
-  creatorName?: string;
+  amountTotal: number;
+  expenseDate: string;
+  role: "PAYER" | "PARTICIPANT";
 };
+
 
 type ExpenseForm = {
   title: string;
@@ -66,7 +66,6 @@ const App: React.FC = () => {
   const { handleLogout } = useAuth();
   const navigate = useNavigate();
   const { notifications, markAsRead } = useNotifications();
-
   const handleMarkAsRead = (id: string) => {
     markAsRead(id);
   };
@@ -119,6 +118,9 @@ const App: React.FC = () => {
     totalAmount: 0,
     averagePerExpense: 0,
   });
+  useEffect(() => {
+  loadExpenses();
+}, []);
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -136,7 +138,8 @@ const App: React.FC = () => {
     try {
       const my = await getMyExpenses();
       const pay = await getPayments();
-
+      console.log("📦 API → myExpenses:", my);
+    console.log("📦 API → payments:", pay);
       setMyExpenses(Array.isArray(my.content) ? my.content : []);
       setPayments(Array.isArray(pay.content) ? pay.content : []);
     } catch (e) {
@@ -161,6 +164,17 @@ const App: React.FC = () => {
 
     fetch();
   }, [active]);
+
+  useEffect(() => {
+  if (!localStorage.getItem("accessToken")) return;
+
+  const loadPending = async () => {
+    const res = await getFriends("PENDING");
+    setPendingFriends(res);
+  };
+
+  loadPending();
+}, [profile.id]);
 
   useEffect(() => {
     if (!localStorage.getItem("accessToken")) return;
@@ -290,11 +304,26 @@ const App: React.FC = () => {
   };
 
   const handleAcceptFriend = async (id: string) => {
-    await acceptFriend(id);
-    setPendingFriends((prev) => prev.filter((f) => f.id !== id));
-    const updated = await getFriends("ACCEPTED");
-    setFriends(updated);
-  };
+  await acceptFriend(id);
+
+  setPendingFriends((prev) => prev.filter((f) => f.id !== id));
+
+  const updatedRaw = await getFriends("ACCEPTED");
+
+  const mapped = updatedRaw.map((f: Friendship) => {
+    const isRequester = f.requester.id === profile.id;
+    const friendUser = isRequester ? f.recipient : f.requester;
+
+    return {
+      friendshipId: f.id,
+      id: friendUser.id,
+      email: friendUser.email,
+    };
+  });
+
+  setFriends(mapped);
+};
+
 
   const handleRejectFriend = async (id: string) => {
     await rejectFriend(id);
@@ -313,22 +342,36 @@ const App: React.FC = () => {
   };
 
   const handleAddFriend = async () => {
-    if (!friendSearch) {
-      alert("Wpisz ID znajomego.");
-      return;
-    }
+  if (!friendSearch) {
+    alert("Wpisz ID znajomego.");
+    return;
+  }
 
-    try {
-      await addFriend(friendSearch);
-      const updated = await getFriends("ACCEPTED");
-      setFriends(updated);
-      setShowFriendModal(false);
-      setFriendSearch("");
-      alert("Zaproszenie wysłane!");
-    } catch {
-      alert("Nie udało się wysłać zaproszenia.");
-    }
-  };
+  try {
+    await addFriend(friendSearch);
+
+    const updatedRaw = await getFriends("ACCEPTED");
+
+    const mapped = updatedRaw.map((f: Friendship) => {
+      const isRequester = f.requester.id === profile.id;
+      const friendUser = isRequester ? f.recipient : f.requester;
+
+      return {
+        friendshipId: f.id,
+        id: friendUser.id,
+        email: friendUser.email,
+      };
+    });
+
+    setFriends(mapped);
+    setShowFriendModal(false);
+    setFriendSearch("");
+    alert("Zaproszenie wysłane!");
+  } catch {
+    alert("Nie udało się wysłać zaproszenia.");
+  }
+};
+
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -351,35 +394,24 @@ const App: React.FC = () => {
     }
 
     try {
-      // Zamiana DD.MM.YYYY → YYYY-MM-DD
-      const formatDate = (d: string) => {
-        if (d.includes(".")) {
-          const [day, month, year] = d.split(".");
-          return `${year}-${month}-${day}`;
-        }
-        return d; // jeśli input type="date", to już jest OK
-      };
+  const payload = {
+    title: form.title,
+    description: form.description,
+    amount: Number(form.amount),
+    expenseDate: new Date(form.date).toISOString(),
+    participants: selectedFriends.map((id) => ({ userId: id })),
+  };
 
-      const payload = {
-        title: form.title,
-        description: form.description,
-        amount: Number(form.amount),
-        expenseDate: formatDate(form.date),
-        participants: [
-          { userId: user.id },
-          ...selectedFriends.map((id) => ({ userId: id })),
-        ],
-      };
+  await createExpense(payload);
+  closeModal();
+  await loadExpenses();
 
-      await createExpense(payload);
-      closeModal();
-      await loadExpenses();
-      setForm({ title: "", amount: "", description: "", date: "" });
-      setSelectedFriends([]);
-    } catch (err) {
-      console.error(err);
-      alert("Nie udało się dodać wydatku.");
-    }
+  setForm({ title: "", amount: "", description: "", date: "" });
+  setSelectedFriends([]);
+} catch (err) {
+  console.error(err);
+  alert("Nie udało się dodać wydatku.");
+}
   };
 
   const renderContent = () => {
@@ -403,24 +435,28 @@ const App: React.FC = () => {
             </div>
 
             <h2>Moje wydatki</h2>
-            {myExpenses.map((exp) => (
+            {(myExpenses ?? []).map((exp) => (
+
               <div className="expense-card" key={exp.id}>
                 <h3>{exp.title}</h3>
-                <p>Kwota: {exp.amount} zł</p>
-                <p>Data: {exp.date}</p>
-                <p>Uczestnicy: {exp.participants.length}</p>
+<p>Kwota: {exp.amountTotal} zł</p>
+<p>Data: {new Date(exp.expenseDate).toLocaleDateString()}</p>
+<p>Rola: {exp.role}</p>
+
+
               </div>
             ))}
 
             <h2>Muszę zapłacić</h2>
-            {payments.map((pay) => (
-              <div className="expense-card" key={pay.id}>
-                <h3>{pay.title}</h3>
-                <p>Do oddania dla: {pay.creatorName}</p>
-                <p>Kwota: {pay.amount} zł</p>
-                <p>Data: {pay.date}</p>
-              </div>
-            ))}
+{payments.map((pay) => (
+  <div className="expense-card" key={pay.id}>
+    <h3>{pay.title}</h3>
+    <p>Kwota: {pay.amountTotal} zł</p>
+    <p>Data: {new Date(pay.expenseDate).toLocaleDateString()}</p>
+    <p>Rola: {pay.role}</p>
+  </div>
+))}
+
           </div>
         );
 
@@ -691,36 +727,40 @@ const App: React.FC = () => {
                 <p className="expense-meta">Brak oczekujących zaproszeń.</p>
               )}
 
-              {pendingFriends.map((friendship) => (
-                <div className="expense-card" key={friendship.id}>
-                  <div className="expense-card-header">
-                    <h3>Zaproszenie do znajomych</h3>
-                    <span className="expense-amount">Oczekujące</span>
-                  </div>
+              {pendingFriends.map((friendship) => {
+  const isRecipient = friendship.recipient.id === profile.id;
+  const otherUser = isRecipient ? friendship.requester : friendship.recipient;
 
-                  <p className="expense-meta">
-                    Od: {friendship.requester.email}
-                  </p>
+  return (
+    <div className="expense-card" key={`pending-${friendship.id}`}>
+      <div className="expense-card-header">
+        <h3>Zaproszenie do znajomych</h3>
+        <span className="expense-amount">Oczekujące</span>
+      </div>
 
-                  <div
-                    style={{ display: "flex", gap: "8px", marginTop: "12px" }}
-                  >
-                    <button
-                      className="save-btn"
-                      onClick={() => handleAcceptFriend(friendship.id)}
-                    >
-                      Akceptuj
-                    </button>
+      <p className="expense-meta">Od: {otherUser.email}</p>
 
-                    <button
-                      className="delete-expense-btn"
-                      onClick={() => handleRejectFriend(friendship.id)}
-                    >
-                      Odrzuć
-                    </button>
-                  </div>
-                </div>
-              ))}
+      {isRecipient && (
+  <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+    <button
+      className="save-btn"
+      onClick={() => handleAcceptFriend(friendship.id)}
+    >
+      Akceptuj
+    </button>
+
+    <button
+      className="delete-expense-btn"
+      onClick={() => handleRejectFriend(friendship.id)}
+    >
+      Odrzuć
+    </button>
+  </div>
+)}
+    </div>
+  );
+})}
+
             </div>
           </div>
         );
