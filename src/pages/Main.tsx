@@ -3,11 +3,17 @@ import "./styles.css";
 import { useAuth } from "../context/useAuth";
 import { useNavigate } from "react-router-dom";
 import { useNotifications } from "../hooks/useNotifications";
+import { getExpenseStatistics } from "../api/statisticsService";
+import type { Expense } from "../types/Expense";
+
 import {
-  getPaymentStatistics,
-  getExpenseStatistics,
-} from "../api/statisticsService";
-import { getMyExpenses, createExpense } from "../api/expensesService";
+  getMyExpenses,
+  createExpense,
+  deleteExpense,
+  payMyPart,
+  getExpenseDetails,
+} from "../api/expensesService";
+
 import { getPayments } from "../api/paymentsService";
 import {
   getProfile,
@@ -36,15 +42,6 @@ type ActivePage =
   | "notifications"
   | "settings";
 
-export type Expense = {
-  id: string;
-  title: string;
-  amountTotal: number;
-  expenseDate: string;
-  role: "PAYER" | "PARTICIPANT";
-};
-
-
 type ExpenseForm = {
   title: string;
   amount: string;
@@ -66,9 +63,6 @@ const App: React.FC = () => {
   const { handleLogout } = useAuth();
   const navigate = useNavigate();
   const { notifications, markAsRead } = useNotifications();
-  const handleMarkAsRead = (id: string) => {
-    markAsRead(id);
-  };
 
   const [profile, setProfile] = useState({
     id: "",
@@ -107,20 +101,14 @@ const App: React.FC = () => {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [twoFaCode, setTwoFaCode] = useState("");
 
-  const [stats, setStats] = useState({
-    totalPayments: 0,
-    totalAmount: 0,
-    averagePerPayment: 0,
-  });
-
   const [expenseStats, setExpenseStats] = useState({
     totalExpenses: 0,
     totalAmount: 0,
     averagePerExpense: 0,
   });
   useEffect(() => {
-  loadExpenses();
-}, []);
+    loadExpenses();
+  }, []);
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -138,8 +126,6 @@ const App: React.FC = () => {
     try {
       const my = await getMyExpenses();
       const pay = await getPayments();
-      console.log("📦 API → myExpenses:", my);
-    console.log("📦 API → payments:", pay);
       setMyExpenses(Array.isArray(my.content) ? my.content : []);
       setPayments(Array.isArray(pay.content) ? pay.content : []);
     } catch (e) {
@@ -164,19 +150,46 @@ const App: React.FC = () => {
 
     fetch();
   }, [active]);
+  const handleDelete = async (id: string) => {
+    if (!confirm("Na pewno chcesz usunąć ten wydatek?")) return;
 
-  useEffect(() => {
-  if (!localStorage.getItem("accessToken")) return;
+    await deleteExpense(id);
+    await loadExpenses();
+  };
+  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
 
-  const loadPending = async () => {
-    const res = await getFriends("PENDING");
-    setPendingFriends(res);
+  const openDetails = async (exp: Expense) => {
+    const full = await getExpenseDetails(exp.id);
+    setSelectedExpense(full);
   };
 
-  loadPending();
-}, [profile.id]);
+  const closeDetails = () => setSelectedExpense(null);
+  useEffect(() => {
+    if (!localStorage.getItem("accessToken")) return;
+    getProfile().then((data) => {
+      setProfile(data);
+      setSettingsForm({ firstName: data.firstName, lastName: data.lastName });
+      setUser({
+        id: data.id,
+        email: data.email,
+        firstName: data.firstName,
+        lastName: data.lastName,
+      });
+    });
+  }, []);
+  useEffect(() => {
+    if (!localStorage.getItem("accessToken")) return;
+
+    const loadPending = async () => {
+      const res = await getFriends("PENDING");
+      setPendingFriends(res);
+    };
+
+    loadPending();
+  }, [profile.id]);
 
   useEffect(() => {
+    if (!profile.id) return;
     if (!localStorage.getItem("accessToken")) return;
     const loadFriends = async () => {
       const res: Friendship[] = await getFriends("ACCEPTED");
@@ -198,20 +211,6 @@ const App: React.FC = () => {
     loadFriends();
   }, [profile.id]);
 
-  useEffect(() => {
-    if (!localStorage.getItem("accessToken")) return;
-    getProfile().then((data) => {
-      setProfile(data);
-      setSettingsForm({ firstName: data.firstName, lastName: data.lastName });
-      setUser({
-        id: data.id,
-        email: data.email,
-        firstName: data.firstName,
-        lastName: data.lastName,
-      });
-    });
-  }, []);
-
   const handleSearchStats = async () => {
     if (!startDate || !endDate) {
       alert("Podaj zakres dat!");
@@ -219,10 +218,7 @@ const App: React.FC = () => {
     }
 
     try {
-      const paymentsStats = await getPaymentStatistics(startDate, endDate);
       const expensesStats = await getExpenseStatistics(startDate, endDate);
-
-      setStats(paymentsStats);
       setExpenseStats(expensesStats);
     } catch {
       alert("Błąd podczas pobierania statystyk.");
@@ -302,28 +298,32 @@ const App: React.FC = () => {
       alert("Błąd podczas wyłączania 2FA.");
     }
   };
+  const handlePay = async (expenseId: string) => {
+    await payMyPart(expenseId);
+    await loadExpenses();
+    closeDetails();
+  };
 
   const handleAcceptFriend = async (id: string) => {
-  await acceptFriend(id);
+    await acceptFriend(id);
 
-  setPendingFriends((prev) => prev.filter((f) => f.id !== id));
+    setPendingFriends((prev) => prev.filter((f) => f.id !== id));
 
-  const updatedRaw = await getFriends("ACCEPTED");
+    const updatedRaw = await getFriends("ACCEPTED");
 
-  const mapped = updatedRaw.map((f: Friendship) => {
-    const isRequester = f.requester.id === profile.id;
-    const friendUser = isRequester ? f.recipient : f.requester;
+    const mapped = updatedRaw.map((f: Friendship) => {
+      const isRequester = f.requester.id === profile.id;
+      const friendUser = isRequester ? f.recipient : f.requester;
 
-    return {
-      friendshipId: f.id,
-      id: friendUser.id,
-      email: friendUser.email,
-    };
-  });
+      return {
+        friendshipId: f.id,
+        id: friendUser.id,
+        email: friendUser.email,
+      };
+    });
 
-  setFriends(mapped);
-};
-
+    setFriends(mapped);
+  };
 
   const handleRejectFriend = async (id: string) => {
     await rejectFriend(id);
@@ -342,36 +342,35 @@ const App: React.FC = () => {
   };
 
   const handleAddFriend = async () => {
-  if (!friendSearch) {
-    alert("Wpisz ID znajomego.");
-    return;
-  }
+    if (!friendSearch) {
+      alert("Wpisz ID znajomego.");
+      return;
+    }
 
-  try {
-    await addFriend(friendSearch);
+    try {
+      await addFriend(friendSearch);
 
-    const updatedRaw = await getFriends("ACCEPTED");
+      const updatedRaw = await getFriends("ACCEPTED");
 
-    const mapped = updatedRaw.map((f: Friendship) => {
-      const isRequester = f.requester.id === profile.id;
-      const friendUser = isRequester ? f.recipient : f.requester;
+      const mapped = updatedRaw.map((f: Friendship) => {
+        const isRequester = f.requester.id === profile.id;
+        const friendUser = isRequester ? f.recipient : f.requester;
 
-      return {
-        friendshipId: f.id,
-        id: friendUser.id,
-        email: friendUser.email,
-      };
-    });
+        return {
+          friendshipId: f.id,
+          id: friendUser.id,
+          email: friendUser.email,
+        };
+      });
 
-    setFriends(mapped);
-    setShowFriendModal(false);
-    setFriendSearch("");
-    alert("Zaproszenie wysłane!");
-  } catch {
-    alert("Nie udało się wysłać zaproszenia.");
-  }
-};
-
+      setFriends(mapped);
+      setShowFriendModal(false);
+      setFriendSearch("");
+      alert("Zaproszenie wysłane!");
+    } catch {
+      alert("Nie udało się wysłać zaproszenia.");
+    }
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -388,30 +387,38 @@ const App: React.FC = () => {
     e: React.FormEvent<HTMLFormElement>,
   ): Promise<void> => {
     e.preventDefault();
+
     if (!user) {
       alert("Brak danych użytkownika.");
       return;
     }
 
     try {
-  const payload = {
-    title: form.title,
-    description: form.description,
-    amount: Number(form.amount),
-    expenseDate: new Date(form.date).toISOString(),
-    participants: selectedFriends.map((id) => ({ userId: id })),
-  };
+      console.log("friends:", friends);
+      console.log("selectedFriends:", selectedFriends);
 
-  await createExpense(payload);
-  closeModal();
-  await loadExpenses();
+      const payload = {
+        title: form.title,
+        description: form.description,
+        amount: Number(form.amount),
+        expenseDate: new Date(form.date).toISOString(),
+        participants: selectedFriends.map((id) => ({ userId: id })),
+      };
 
-  setForm({ title: "", amount: "", description: "", date: "" });
-  setSelectedFriends([]);
-} catch (err) {
-  console.error(err);
-  alert("Nie udało się dodać wydatku.");
-}
+      await createExpense(payload);
+      closeModal();
+      await loadExpenses();
+
+      setForm({ title: "", amount: "", description: "", date: "" });
+      setSelectedFriends([]);
+    } catch (err: any) {
+      console.error(
+        "ADD_EXPENSE_ERROR",
+        err.response?.status,
+        err.response?.data,
+      );
+      alert("Nie udało się dodać wydatku.");
+    }
   };
 
   const renderContent = () => {
@@ -434,29 +441,44 @@ const App: React.FC = () => {
               </button>
             </div>
 
-            <h2>Moje wydatki</h2>
-            {(myExpenses ?? []).map((exp) => (
+            <h2 className="section-title">Wydatki</h2>
 
-              <div className="expense-card" key={exp.id}>
-                <h3>{exp.title}</h3>
-<p>Kwota: {exp.amountTotal} zł</p>
-<p>Data: {new Date(exp.expenseDate).toLocaleDateString()}</p>
-<p>Rola: {exp.role}</p>
+            {[...myExpenses, ...payments].map((exp: Expense) => {
+              const myShare = exp.shares?.find((s) => s.user.id === profile.id);
 
+              let status = "";
 
-              </div>
-            ))}
+              if (exp.role === "PAYER") {
+                status = "JESTEM PŁACĄCY";
+              } else if (myShare) {
+                if (myShare.isPaid) {
+                  status = "SPŁACONE";
+                } else {
+                  status = `MUSZĘ ZAPŁACIĆ ${myShare.amount.toFixed(2)} zł`;
+                }
+              }
 
-            <h2>Muszę zapłacić</h2>
-{payments.map((pay) => (
-  <div className="expense-card" key={pay.id}>
-    <h3>{pay.title}</h3>
-    <p>Kwota: {pay.amountTotal} zł</p>
-    <p>Data: {new Date(pay.expenseDate).toLocaleDateString()}</p>
-    <p>Rola: {pay.role}</p>
-  </div>
-))}
+              return (
+                <div className="expense-card2" key={exp.id}>
+                  <h3>{exp.title}</h3>
+                  <p>Kwota: {exp.amountTotal} zł</p>
+                  <p className="expense-status">{status}</p>
 
+                  <div className="expense-actions">
+                    <button onClick={() => openDetails(exp)}>Szczegóły</button>
+
+                    {exp.role === "PAYER" && (
+                      <button
+                        className="delete-btn"
+                        onClick={() => handleDelete(exp.id)}
+                      >
+                        Usuń
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         );
 
@@ -728,39 +750,49 @@ const App: React.FC = () => {
               )}
 
               {pendingFriends.map((friendship) => {
-  const isRecipient = friendship.recipient.id === profile.id;
-  const otherUser = isRecipient ? friendship.requester : friendship.recipient;
+                const isRecipient = friendship.recipient.id === profile.id;
+                const otherUser = isRecipient
+                  ? friendship.requester
+                  : friendship.recipient;
 
-  return (
-    <div className="expense-card" key={`pending-${friendship.id}`}>
-      <div className="expense-card-header">
-        <h3>Zaproszenie do znajomych</h3>
-        <span className="expense-amount">Oczekujące</span>
-      </div>
+                return (
+                  <div
+                    className="expense-card"
+                    key={`pending-${friendship.id}`}
+                  >
+                    <div className="expense-card-header">
+                      <h3>Zaproszenie do znajomych</h3>
+                      <span className="expense-amount">Oczekujące</span>
+                    </div>
 
-      <p className="expense-meta">Od: {otherUser.email}</p>
+                    <p className="expense-meta">Od: {otherUser.email}</p>
 
-      {isRecipient && (
-  <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
-    <button
-      className="save-btn"
-      onClick={() => handleAcceptFriend(friendship.id)}
-    >
-      Akceptuj
-    </button>
+                    {isRecipient && (
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "8px",
+                          marginTop: "12px",
+                        }}
+                      >
+                        <button
+                          className="save-btn"
+                          onClick={() => handleAcceptFriend(friendship.id)}
+                        >
+                          Akceptuj
+                        </button>
 
-    <button
-      className="delete-expense-btn"
-      onClick={() => handleRejectFriend(friendship.id)}
-    >
-      Odrzuć
-    </button>
-  </div>
-)}
-    </div>
-  );
-})}
-
+                        <button
+                          className="delete-expense-btn"
+                          onClick={() => handleRejectFriend(friendship.id)}
+                        >
+                          Odrzuć
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         );
@@ -800,15 +832,6 @@ const App: React.FC = () => {
             </div>
 
             <div className="stats-summary">
-              <h2>Płatności</h2>
-              <p>Łączna liczba płatności: {stats.totalPayments}</p>
-              <p>Łączna kwota: {stats.totalAmount.toFixed(2)} zł</p>
-              <p>
-                Średnia na płatność: {stats.averagePerPayment.toFixed(2)} zł
-              </p>
-            </div>
-
-            <div className="stats-summary">
               <h2>Wydatki</h2>
               <p>Łączna liczba wydatków: {expenseStats.totalExpenses}</p>
               <p>Łączna kwota: {expenseStats.totalAmount.toFixed(2)} zł</p>
@@ -823,7 +846,12 @@ const App: React.FC = () => {
       case "notifications":
         return (
           <div className="notifications-page">
-            <h1>POWIADOMIENIA</h1>
+            <div className="dashboard-top">
+              <div>
+                <h1>POWIADOMIENIA</h1>
+                <p>Zobacz co nowego...</p>
+              </div>
+            </div>
 
             <div className="expenses-grid">
               {notifications.map((n) => (
@@ -846,7 +874,7 @@ const App: React.FC = () => {
                   {!n.isRead && (
                     <button
                       className="save-btn"
-                      onClick={() => handleMarkAsRead(n.id)}
+                      onClick={() => markAsRead(n.id)}
                     >
                       Oznacz jako przeczytane
                     </button>
@@ -943,6 +971,123 @@ const App: React.FC = () => {
                 Zaproś
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* TWOJA CZĘŚĆ — renderuj tylko jeśli selectedExpense istnieje */}
+      {selectedExpense && (
+        <div className="modal-overlay" onClick={() => setSelectedExpense(null)}>
+          <div
+            className="modal clean-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* HEADER */}
+            <div className="modal-header-clean">
+              <div>
+                <h2 className="modal-title">{selectedExpense.title}</h2>
+                <p className="modal-subtitle">{selectedExpense.description}</p>
+              </div>
+
+              <button
+                className="close-btn"
+                onClick={() => setSelectedExpense(null)}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* META */}
+            <div className="meta-grid">
+              <div>
+                <span className="label">Kwota całkowita</span>
+                <p className="value">{selectedExpense.amountTotal} zł</p>
+              </div>
+
+              <div>
+                <span className="label">Data</span>
+                <p className="value">
+                  {new Date(selectedExpense.expenseDate).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+
+            {/* TWOJA CZĘŚĆ */}
+            <div className="section-block">
+              <h3>Twoja część</h3>
+
+              {selectedExpense.role === "PAYER" ? (
+                <p className="payer-info">To Ty zapłaciłeś za wszystkich.</p>
+              ) : (
+                (() => {
+                  const myShare = selectedExpense.shares?.find(
+                    (s) => s.user.id === profile.id,
+                  );
+                  const payer = selectedExpense.payer;
+
+                  return (
+                    <>
+                      <div className="meta-row">
+                        <span>Musisz oddać:</span>
+                        <strong>{myShare?.amount.toFixed(2)} zł</strong>
+                      </div>
+
+                      <div className="meta-row">
+                        <span>Osobie:</span>
+                        <strong>{payer?.email}</strong>
+                      </div>
+
+                      {!myShare?.isPaid ? (
+                        <button
+                          className="primary-btn"
+                          onClick={() => handlePay(selectedExpense.id)}
+                        >
+                          Spłaciłem
+                        </button>
+                      ) : (
+                        <p className="paid-info">✔ Już spłacone</p>
+                      )}
+                    </>
+                  );
+                })()
+              )}
+            </div>
+
+            {/* UCZESTNICY */}
+            <div className="section-block">
+              <h3>Uczestnicy</h3>
+
+              {selectedExpense.shares.map((share) => {
+                const isMe = share.user.id === profile.id;
+
+                return (
+                  <div key={share.user.id} className="participant-row">
+                    <div className="participant-info">
+                      <span className="participant-name">
+                        {isMe ? "Ty" : share.user.email}
+                      </span>
+                      <span className="participant-amount">
+                        {share.amount.toFixed(2)} zł
+                      </span>
+                    </div>
+
+                    <span
+                      className={`participant-status ${share.isPaid ? "paid" : "unpaid"}`}
+                    >
+                      {share.isPaid ? "✔" : "✕"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* FOOTER */}
+            <button
+              className="secondary-btn"
+              onClick={() => setSelectedExpense(null)}
+            >
+              Zamknij
+            </button>
           </div>
         </div>
       )}
