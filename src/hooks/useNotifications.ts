@@ -17,9 +17,11 @@ export type Notification = {
 
 export const useNotifications = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-
   const initialized = useRef(false);
 
+  // ---------------------------
+  // 1) Polling (fallback)
+  // ---------------------------
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
@@ -29,15 +31,11 @@ export const useNotifications = () => {
         const res = await getNotifications();
         const api: Notification[] = res.content ?? [];
 
-        setNotifications((prev: Notification[]) => {
+        setNotifications((prev) => {
           const merged = [
-            ...api.filter(
-              (a: Notification) =>
-                !prev.some((p: Notification) => p.id === a.id),
-            ),
+            ...api.filter((a) => !prev.some((p) => p.id === a.id)),
             ...prev,
           ];
-
           return merged;
         });
       } catch (e) {
@@ -50,11 +48,19 @@ export const useNotifications = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // ---------------------------
+  // 2) WebSocket + STOMP
+  // ---------------------------
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     if (!token) return;
 
-    const socket = new SockJS("wss://");
+    // 🔥 Najważniejsze: poprawny adres SockJS
+    const WS_URL = import.meta.env.PROD
+      ? "https://wydatkomat.tech/api/ws" // produkcja
+      : "http://localhost:8080/api/ws"; // dev
+
+    const socket = new SockJS(WS_URL);
 
     const stompClient = new Client({
       webSocketFactory: () => socket as unknown as WebSocket,
@@ -68,8 +74,7 @@ export const useNotifications = () => {
     stompClient.onConnect = () => {
       stompClient.subscribe("/user/notifications", (msg: { body: string }) => {
         const notification: Notification = JSON.parse(msg.body);
-
-        setNotifications((prev: Notification[]) => [notification, ...prev]);
+        setNotifications((prev) => [notification, ...prev]);
       });
     };
 
@@ -80,12 +85,12 @@ export const useNotifications = () => {
     };
   }, []);
 
+  // ---------------------------
+  // 3) Mark as read
+  // ---------------------------
   const markAsRead = async (id: string) => {
     await markAsReadApi(id);
-
-    setNotifications((prev: Notification[]) =>
-      prev.filter((n: Notification) => n.id !== id),
-    );
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
   return { notifications, markAsRead };
