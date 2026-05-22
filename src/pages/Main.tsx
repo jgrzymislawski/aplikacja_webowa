@@ -310,7 +310,10 @@ const App: React.FC = () => {
 
       await payMyPart(expenseId, myShare.amount);
       await loadExpenses();
-      closeDetails();
+
+      // Odśwież szczegóły wydatku żeby ikona zmieniła się od razu
+      const updated = await getExpenseDetails(expenseId);
+      setSelectedExpense(updated);
     } catch (e) {
       console.error(e);
     }
@@ -460,42 +463,51 @@ const App: React.FC = () => {
               </button>
             </div>
             <h2 className="section-title">Wydatki</h2>
-            {[...myExpenses, ...payments].map((exp: Expense) => {
-              const myShare = exp.shares?.find((s) => s.user.id === profile.id);
+            {[...myExpenses, ...payments]
+              .filter(
+                (exp, index, self) =>
+                  self.findIndex((e) => e.id === exp.id) === index,
+              )
+              .map((exp: Expense) => {
+                const myShare = exp.shares?.find(
+                  (s) => s.user.id === profile.id,
+                );
 
-              let status = "";
+                let status = "";
 
-              if (exp.role === "PAYER") {
-                status = "JESTEM PŁACĄCY";
-              } else if (myShare) {
-                if (myShare.isPaid) {
-                  status = "SPŁACONE";
-                } else {
-                  status = `MUSZĘ ZAPŁACIĆ ${myShare.amount.toFixed(2)} zł`;
+                if (exp.role === "PAYER") {
+                  status = "JESTEM PŁACĄCY";
+                } else if (myShare) {
+                  if (myShare.isPaid) {
+                    status = "SPŁACONE";
+                  } else {
+                    status = `MUSZĘ ZAPŁACIĆ ${myShare.amount.toFixed(2)} zł`;
+                  }
                 }
-              }
 
-              return (
-                <div className="expense-card2" key={exp.id}>
-                  <h3>{exp.title}</h3>
-                  <p>Kwota: {exp.amountTotal} zł</p>
-                  <p className="expense-status">{status}</p>
+                return (
+                  <div className="expense-card2" key={exp.id}>
+                    <h3>{exp.title}</h3>
+                    <p>Kwota: {exp.amountTotal} zł</p>
+                    <p className="expense-status">{status}</p>
 
-                  <div className="expense-actions">
-                    <button onClick={() => openDetails(exp)}>Szczegóły</button>
-
-                    {exp.role === "PAYER" && (
-                      <button
-                        className="delete-btn"
-                        onClick={() => handleDelete(exp.id)}
-                      >
-                        Usuń
+                    <div className="expense-actions">
+                      <button onClick={() => openDetails(exp)}>
+                        Szczegóły
                       </button>
-                    )}
+
+                      {exp.role === "PAYER" && (
+                        <button
+                          className="delete-btn"
+                          onClick={() => handleDelete(exp.id)}
+                        >
+                          Usuń
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         );
 
