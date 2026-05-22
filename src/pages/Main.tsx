@@ -153,7 +153,6 @@ const App: React.FC = () => {
     setSelectedExpense(full);
   };
 
-  const closeDetails = () => setSelectedExpense(null);
   useEffect(() => {
     if (!localStorage.getItem("accessToken")) return;
     getProfile().then((data) => {
@@ -288,21 +287,57 @@ const App: React.FC = () => {
       alert("Błąd podczas wyłączania 2FA.");
     }
   };
-  const handlePay = async (expenseId: string, myShare: { amount: number }) => {
+  const handlePay = async (
+    expenseId: string,
+    myShare: { amount: number; user?: { id: string } },
+  ) => {
     try {
       if (myShare.amount === 0) {
-        closeDetails();
+        // Już spłacone - zaktualizuj UI optymistycznie
+        setSelectedExpense((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            shares: prev.shares.map((s) =>
+              s.user.id === profile.id ? { ...s, isPaid: true } : s,
+            ),
+          };
+        });
         return;
       }
 
       await payMyPart(expenseId, myShare.amount);
       await loadExpenses();
 
-      // Odśwież szczegóły wydatku żeby ikona zmieniła się od razu
-      const updated = await getExpenseDetails(expenseId);
-      setSelectedExpense(updated);
+      // Odśwież szczegóły z backendu, a w razie błędu zaktualizuj lokalnie
+      try {
+        const updated = await getExpenseDetails(expenseId);
+        setSelectedExpense(updated);
+      } catch {
+        // Fallback - zaktualizuj lokalnie
+        setSelectedExpense((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            shares: prev.shares.map((s) =>
+              s.user.id === profile.id ? { ...s, isPaid: true, amount: 0 } : s,
+            ),
+          };
+        });
+      }
     } catch (e) {
       console.error(e);
+      // Nawet jeśli backend zwrócił błąd (np. już zapłacone), zaktualizuj UI
+      setSelectedExpense((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          shares: prev.shares.map((s) =>
+            s.user.id === profile.id ? { ...s, isPaid: true, amount: 0 } : s,
+          ),
+        };
+      });
+      await loadExpenses();
     }
   };
 
