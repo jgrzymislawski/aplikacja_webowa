@@ -106,9 +106,6 @@ const App: React.FC = () => {
     totalAmount: 0,
     averagePerExpense: 0,
   });
-  useEffect(() => {
-    loadExpenses();
-  }, []);
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -132,6 +129,12 @@ const App: React.FC = () => {
       console.error(e);
     }
   };
+  useEffect(() => {
+    const fetchData = async () => {
+      await loadExpenses();
+    };
+    fetchData();
+  }, []);
 
   useEffect(() => {
     if (active !== "dashboard") return;
@@ -411,12 +414,19 @@ const App: React.FC = () => {
 
       setForm({ title: "", amount: "", description: "", date: "" });
       setSelectedFriends([]);
-    } catch (err: any) {
-      console.error(
-        "ADD_EXPENSE_ERROR",
-        err.response?.status,
-        err.response?.data,
-      );
+    } catch (err: unknown) {
+      if (typeof err === "object" && err !== null && "response" in err) {
+        const e = err as { response?: { status?: number; data?: unknown } };
+
+        console.error(
+          "ADD_EXPENSE_ERROR",
+          e.response?.status,
+          e.response?.data,
+        );
+      } else {
+        console.error("ADD_EXPENSE_ERROR", err);
+      }
+
       alert("Nie udało się dodać wydatku.");
     }
   };
