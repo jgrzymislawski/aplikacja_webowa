@@ -54,7 +54,7 @@ export const useNotifications = () => {
     const token = localStorage.getItem("accessToken");
     if (!token) return;
 
-    const socket = new SockJS("ws://");
+    const socket = new SockJS("wss://");
 
     const stompClient = new Client({
       webSocketFactory: () => socket as unknown as WebSocket,
