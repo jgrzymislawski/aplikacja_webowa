@@ -5,10 +5,8 @@ export type CreateExpenseRequest = {
   description: string;
   amount: number;
   expenseDate: string;
-  participants: { userId: string }[]
-
+  participants: { userId: string }[];
 };
-
 
 export const createExpense = async (expenseData: CreateExpenseRequest) => {
   const res = await client.post("/expenses", expenseData);
@@ -22,11 +20,11 @@ export const getMyExpenses = async () => {
 export const deleteExpense = async (id: string) => {
   return client.delete(`/expenses/${id}`);
 };
-export const payMyPart = async (expenseId: string) => {
-  return client.patch(`/expenses/${expenseId}/pay`);
+export const payMyPart = async (expenseId: string, amount: number) => {
+  return client.post("/payments", { expenseId, amount });
 };
+
 export const getExpenseDetails = async (id: string) => {
   const res = await client.get(`/expenses/${id}`);
   return res.data;
 };
-

@@ -301,9 +301,9 @@ const App: React.FC = () => {
       alert("Błąd podczas wyłączania 2FA.");
     }
   };
-  const handlePay = async (expenseId: string) => {
+  const handlePay = async (expenseId: string, myShare: { amount: number }) => {
     try {
-      await payMyPart(expenseId);
+      await payMyPart(expenseId, myShare.amount);
       await loadExpenses();
       closeDetails();
     } catch (e) {
@@ -1051,10 +1051,10 @@ const App: React.FC = () => {
                         <strong>{payer?.email}</strong>
                       </div>
 
-                      {!myShare?.isPaid ? (
+                      {myShare && !myShare.isPaid ? (
                         <button
                           className="primary-btn"
-                          onClick={() => handlePay(selectedExpense.id)}
+                          onClick={() => handlePay(selectedExpense.id, myShare)}
                         >
                           Spłaciłem
                         </button>
