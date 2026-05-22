@@ -22,7 +22,11 @@ export const logout = async () => {
 };
 
 export const loginWithOAuth = (provider: "google") => {
-  window.location.href = `http://localhost:8080/api/oauth2/authorization/${provider}`;
+  const baseUrl = import.meta.env.PROD
+    ? "https://wydatkomat.tech/api"
+    : "http://localhost:8080/api";
+
+  window.location.href = `${baseUrl}/oauth2/authorization/${provider}`;
 };
 
 export const verify2FA = async (code: string) => {

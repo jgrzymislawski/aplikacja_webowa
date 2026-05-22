@@ -302,9 +302,13 @@ const App: React.FC = () => {
     }
   };
   const handlePay = async (expenseId: string) => {
-    await payMyPart(expenseId);
-    await loadExpenses();
-    closeDetails();
+    try {
+      await payMyPart(expenseId);
+      await loadExpenses();
+      closeDetails();
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleAcceptFriend = async (id: string) => {

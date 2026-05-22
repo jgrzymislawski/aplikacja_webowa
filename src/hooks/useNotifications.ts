@@ -18,10 +18,6 @@ export type Notification = {
 export const useNotifications = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const initialized = useRef(false);
-
-  // ---------------------------
-  // 1) Polling (fallback)
-  // ---------------------------
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
@@ -48,17 +44,13 @@ export const useNotifications = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // ---------------------------
-  // 2) WebSocket + STOMP
-  // ---------------------------
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     if (!token) return;
 
-    // 🔥 Najważniejsze: poprawny adres SockJS
     const WS_URL = import.meta.env.PROD
-      ? "https://wydatkomat.tech/api/ws" // produkcja
-      : "http://localhost:8080/api/ws"; // dev
+      ? "https://wydatkomat.tech/api/ws"
+      : "http://localhost:8080/api/ws";
 
     const socket = new SockJS(WS_URL);
 
@@ -85,9 +77,6 @@ export const useNotifications = () => {
     };
   }, []);
 
-  // ---------------------------
-  // 3) Mark as read
-  // ---------------------------
   const markAsRead = async (id: string) => {
     await markAsReadApi(id);
     setNotifications((prev) => prev.filter((n) => n.id !== id));
