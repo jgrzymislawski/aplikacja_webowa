@@ -5,10 +5,9 @@ export type Share = {
     role: string;
     createdAt: string;
   };
-  amount: number;   // ← TO JEST KLUCZOWE
-  isPaid?: boolean; // jeśli backend kiedyś doda
+  amount: number;
+  isPaid?: boolean;
 };
-
 
 export type Expense = {
   id: string;

@@ -1,5 +1,5 @@
 export type Friend = {
-  id: string; // ID użytkownika
+  id: string;
   email: string;
-  friendshipId: string; // ID relacji
+  friendshipId: string;
 };

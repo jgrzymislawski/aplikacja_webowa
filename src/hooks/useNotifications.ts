@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import SockJS from "sockjs-client";
 import { Client } from "@stomp/stompjs";
-import { getNotifications, markAsRead as markAsReadApi } from "../api/notificationService";
+import {
+  getNotifications,
+  markAsRead as markAsReadApi,
+} from "../api/notificationService";
 
 export type Notification = {
   id: string;
@@ -15,10 +18,8 @@ export type Notification = {
 export const useNotifications = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  // 🔥 Blokada podwójnego uruchamiania w React 18
   const initialized = useRef(false);
 
-  // POLLING
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
@@ -29,10 +30,12 @@ export const useNotifications = () => {
         const api: Notification[] = res.content ?? [];
 
         setNotifications((prev: Notification[]) => {
-          // scal API + WebSocket
           const merged = [
-            ...api.filter((a: Notification) => !prev.some((p: Notification) => p.id === a.id)),
-            ...prev
+            ...api.filter(
+              (a: Notification) =>
+                !prev.some((p: Notification) => p.id === a.id),
+            ),
+            ...prev,
           ];
 
           return merged;
@@ -47,12 +50,11 @@ export const useNotifications = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // WEBSOCKET
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     if (!token) return;
 
-    const socket = new SockJS("http://localhost:8080/api/ws");
+    const socket = new SockJS("ws://");
 
     const stompClient = new Client({
       webSocketFactory: () => socket as unknown as WebSocket,
@@ -67,10 +69,7 @@ export const useNotifications = () => {
       stompClient.subscribe("/user/notifications", (msg: { body: string }) => {
         const notification: Notification = JSON.parse(msg.body);
 
-        setNotifications((prev: Notification[]) => [
-          notification,
-          ...prev
-        ]);
+        setNotifications((prev: Notification[]) => [notification, ...prev]);
       });
     };
 
@@ -81,12 +80,11 @@ export const useNotifications = () => {
     };
   }, []);
 
-  // MARK AS READ
   const markAsRead = async (id: string) => {
     await markAsReadApi(id);
 
     setNotifications((prev: Notification[]) =>
-      prev.filter((n: Notification) => n.id !== id)
+      prev.filter((n: Notification) => n.id !== id),
     );
   };
 

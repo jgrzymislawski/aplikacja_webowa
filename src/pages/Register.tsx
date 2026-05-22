@@ -32,7 +32,7 @@ export default function Register() {
         newPassword: password,
         repeatNewPassword: repeatPassword,
       });
-      navigate("/login"); // po rejestracji idzie do logowania
+      navigate("/login");
     } catch {
       setError("Rejestracja nie powiodła się. Spróbuj ponownie.");
     } finally {

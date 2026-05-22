@@ -11,8 +11,6 @@ function Home() {
           Zaloguj się
         </button>
       </header>
-
-      {/* HERO */}
       <section className="hero">
         <div className="hero-content">
           <h2>
@@ -39,8 +37,6 @@ function Home() {
           </div>
         </div>
       </section>
-
-      {/* FEATURES */}
       <section className="features" id="sekcja">
         <div className="card">
           <h3>💸 Pełna kontrola nad Twoimi finansami — w jednym miejscu</h3>

@@ -8,7 +8,6 @@ import Main from "./pages/Main";
 import ResetPassword from "./pages/ResetPassword";
 import { useAuth } from "./context/useAuth";
 
-// Komponent który chroni trasy – niezalogowany użytkownik dostaje przekierowanie na /login
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isLoggedIn } = useAuth();
   return isLoggedIn ? children : <Navigate to="/login" />;

@@ -4,8 +4,6 @@
   box-sizing: border-box;
 }
 
-/* GLOBAL */
-
 html,
 body,
 #root {
@@ -20,8 +18,6 @@ body {
   color: white;
 }
 
-/* PAGE */
-
 .page {
   width: 100%;
   min-height: 100vh;
@@ -29,8 +25,6 @@ body {
   background: #0f172a;
   color: white;
 }
-
-/* HEADER */
 
 .header {
   width: 100%;
@@ -48,7 +42,7 @@ body {
   background: rgba(15, 23, 42, 0.7);
   backdrop-filter: blur(10px);
 
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .logo {
@@ -90,8 +84,6 @@ body {
   color: white;
 }
 
-/* HERO */
-
 .hero {
   width: 100%;
   min-height: 100vh;
@@ -131,8 +123,6 @@ body {
   margin-bottom: 35px;
 }
 
-/* BUTTONS */
-
 .hero-buttons {
   display: flex;
   flex-wrap: wrap;
@@ -164,16 +154,14 @@ body {
 
 .secondary {
   background: transparent;
-  border: 1px solid rgba(255,255,255,0.3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   color: white;
 }
 
 .secondary:hover {
-  background: rgba(255,255,255,0.08);
+  background: rgba(255, 255, 255, 0.08);
   transform: translateY(-2px);
 }
-
-/* FEATURES */
 
 .features {
   width: 100%;
@@ -195,14 +183,14 @@ body {
 
   backdrop-filter: blur(10px);
 
-  border: 1px solid rgba(255,255,255,0.05);
+  border: 1px solid rgba(255, 255, 255, 0.05);
 
   transition: 0.25s ease;
 }
 
 .card:hover {
   transform: translateY(-6px);
-  border-color: rgba(59,130,246,0.35);
+  border-color: rgba(59, 130, 246, 0.35);
 }
 
 .card h3 {
@@ -215,8 +203,6 @@ body {
   line-height: 1.7;
 }
 
-/* FOOTER */
-
 .footer {
   width: 100%;
 
@@ -226,13 +212,10 @@ body {
 
   color: #94a3b8;
 
-  border-top: 1px solid rgba(255,255,255,0.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* RESPONSIVE */
-
 @media (max-width: 900px) {
-
   .header {
     flex-direction: column;
     gap: 18px;
@@ -268,7 +251,6 @@ body {
 }
 
 @media (max-width: 600px) {
-
   .hero h2 {
     font-size: 30px;
   }
@@ -305,20 +287,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(
-    180deg,
-    #3b82f6,
-    #2563eb
-  );
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
 
   border-radius: 20px;
   border: 3px solid #0f172a;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(
-    180deg,
-    #60a5fa,
-    #3b82f6
-  );
+  background: linear-gradient(180deg, #60a5fa, #3b82f6);
 }

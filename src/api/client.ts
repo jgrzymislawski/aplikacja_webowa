@@ -5,8 +5,6 @@ const client = axios.create({
   withCredentials: true,
 });
 
-// INTERCEPTOR REQUESTU
-// Przed każdym wysłaniem requestu – dodaj token do nagłówka
 client.interceptors.request.use((config) => {
   const token = localStorage.getItem("accessToken");
   if (token) {
@@ -15,28 +13,23 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
-// INTERCEPTOR RESPONSU
-// Po każdej odpowiedzi – jeśli serwer zwróci błąd 401 (brak dostępu),
-// spróbuj odświeżyć token i ponów request
 client.interceptors.response.use(
-  (response) => response, // jeśli OK – zwróć normalnie
+  (response) => response,
   async (error) => {
     const original = error.config;
 
     if (error.response?.status === 401 && !original._retry) {
-      original._retry = true; // zabezpieczenie przed nieskończoną pętlą
+      original._retry = true;
 
       try {
-        // poproś API o nowy token (używa refreshToken z cookie)
         const res = await client.post("/auth/refresh");
         const newToken = res.data.accessToken;
 
         localStorage.setItem("accessToken", newToken);
         original.headers.Authorization = `Bearer ${newToken}`;
 
-        return client(original); // ponów oryginalny request z nowym tokenem
+        return client(original);
       } catch {
-        // jeśli refresh też nie zadziałał – wyloguj użytkownika
         localStorage.removeItem("accessToken");
         return Promise.reject(error);
       }
