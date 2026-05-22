@@ -304,9 +304,13 @@ const App: React.FC = () => {
   };
   const handlePay = async (expenseId: string, myShare: { amount: number }) => {
     try {
+      if (myShare.amount === 0) {
+        closeDetails();
+        return;
+      }
+
       await payMyPart(expenseId, myShare.amount);
       await loadExpenses();
-
       closeDetails();
     } catch (e) {
       console.error(e);
@@ -1053,7 +1057,7 @@ const App: React.FC = () => {
                         <strong>{payer?.email}</strong>
                       </div>
 
-                      {myShare && !myShare.isPaid ? (
+                      {myShare && myShare.amount > 0 ? (
                         <button
                           className="primary-btn"
                           onClick={() => handlePay(selectedExpense.id, myShare)}
