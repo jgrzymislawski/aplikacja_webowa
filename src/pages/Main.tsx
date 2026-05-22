@@ -13,7 +13,6 @@ import {
   getExpenseDetails,
 } from "../api/expensesService";
 
-import { getPayments } from "../api/paymentsService";
 import {
   getProfile,
   updateProfile,
@@ -74,7 +73,6 @@ const App: React.FC = () => {
 
   const [user, setUser] = useState<User | null>(null);
   const [myExpenses, setMyExpenses] = useState<Expense[]>([]);
-  const [payments, setPayments] = useState<Expense[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [pendingFriends, setPendingFriends] = useState<Friendship[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
@@ -121,20 +119,11 @@ const App: React.FC = () => {
   const loadExpenses = async () => {
     try {
       const my = await getMyExpenses();
-      const pay = await getPayments();
       setMyExpenses(Array.isArray(my.content) ? my.content : []);
-      setPayments(Array.isArray(pay.content) ? pay.content : []);
     } catch (e) {
       console.error(e);
     }
   };
-  useEffect(() => {
-    const fetchData = async () => {
-      const pay = await getPayments();
-      setPayments(Array.isArray(pay.content) ? pay.content : []);
-    };
-    fetchData();
-  }, []);
 
   useEffect(() => {
     if (active !== "dashboard") return;
@@ -142,10 +131,8 @@ const App: React.FC = () => {
     const fetch = async () => {
       try {
         const my = await getMyExpenses();
-        const pay = await getPayments();
 
         setMyExpenses(Array.isArray(my.content) ? my.content : []);
-        setPayments(Array.isArray(pay.content) ? pay.content : []);
       } catch (e) {
         console.error(e);
       }
@@ -463,51 +450,42 @@ const App: React.FC = () => {
               </button>
             </div>
             <h2 className="section-title">Wydatki</h2>
-            {[...myExpenses, ...payments]
-              .filter(
-                (exp, index, self) =>
-                  self.findIndex((e) => e.id === exp.id) === index,
-              )
-              .map((exp: Expense) => {
-                const myShare = exp.shares?.find(
-                  (s) => s.user.id === profile.id,
-                );
+            {myExpenses.map((exp: Expense) => {
+              const myShare = exp.shares?.find((s) => s.user.id === profile.id);
 
-                let status = "";
+              let status = "";
 
-                if (exp.role === "PAYER") {
-                  status = "JESTEM PŁACĄCY";
-                } else if (myShare) {
-                  if (myShare.isPaid) {
-                    status = "SPŁACONE";
-                  } else {
-                    status = `MUSZĘ ZAPŁACIĆ ${myShare.amount.toFixed(2)} zł`;
-                  }
+              if (exp.role === "PAYER") {
+                status = "JESTEM PŁACĄCY";
+              } else if (myShare) {
+                if (myShare.isPaid) {
+                  status = "SPŁACONE";
+                } else {
+                  status = `MUSZĘ ZAPŁACIĆ ${myShare.amount.toFixed(2)} zł`;
                 }
+              }
 
-                return (
-                  <div className="expense-card2" key={exp.id}>
-                    <h3>{exp.title}</h3>
-                    <p>Kwota: {exp.amountTotal} zł</p>
-                    <p className="expense-status">{status}</p>
+              return (
+                <div className="expense-card2" key={exp.id}>
+                  <h3>{exp.title}</h3>
+                  <p>Kwota: {exp.amountTotal} zł</p>
+                  <p className="expense-status">{status}</p>
 
-                    <div className="expense-actions">
-                      <button onClick={() => openDetails(exp)}>
-                        Szczegóły
+                  <div className="expense-actions">
+                    <button onClick={() => openDetails(exp)}>Szczegóły</button>
+
+                    {exp.role === "PAYER" && (
+                      <button
+                        className="delete-btn"
+                        onClick={() => handleDelete(exp.id)}
+                      >
+                        Usuń
                       </button>
-
-                      {exp.role === "PAYER" && (
-                        <button
-                          className="delete-btn"
-                          onClick={() => handleDelete(exp.id)}
-                        >
-                          Usuń
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </div>
-                );
-              })}
+                </div>
+              );
+            })}
           </div>
         );
 
