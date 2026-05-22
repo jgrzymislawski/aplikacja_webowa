@@ -131,7 +131,8 @@ const App: React.FC = () => {
   };
   useEffect(() => {
     const fetchData = async () => {
-      await loadExpenses();
+      const pay = await getPayments();
+      setPayments(Array.isArray(pay.content) ? pay.content : []);
     };
     fetchData();
   }, []);
