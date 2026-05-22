@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useNotifications } from "../hooks/useNotifications";
 import { getExpenseStatistics } from "../api/statisticsService";
 import type { Expense } from "../types/Expense";
+import type { Payment } from "../types/Payment";
 
 import {
   getMyExpenses,
@@ -75,7 +76,7 @@ const App: React.FC = () => {
 
   const [user, setUser] = useState<User | null>(null);
   const [myExpenses, setMyExpenses] = useState<Expense[]>([]);
-  const [payments, setPayments] = useState<Expense[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [pendingFriends, setPendingFriends] = useState<Friendship[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
@@ -384,6 +385,9 @@ const App: React.FC = () => {
       alert("Nie udało się wysłać zaproszenia.");
     }
   };
+  const isMySharePaid = (expenseId: string) => {
+    return payments.some((p) => p.expense.id === expenseId);
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -460,18 +464,19 @@ const App: React.FC = () => {
                 + Utwórz wydatek
               </button>
             </div>
-
             <h2 className="section-title">Wydatki</h2>
-
-            {[...myExpenses, ...payments].map((exp: Expense) => {
+            {myExpenses.map((exp) => {
               const myShare = exp.shares?.find((s) => s.user.id === profile.id);
+
+              // sprawdzamy czy istnieje payment powiązany z tym wydatkiem
+              const isPaid = payments.some((p) => p.expense.id === exp.id);
 
               let status = "";
 
               if (exp.role === "PAYER") {
                 status = "JESTEM PŁACĄCY";
               } else if (myShare) {
-                if (myShare.isPaid) {
+                if (isPaid) {
                   status = "SPŁACONE";
                 } else {
                   status = `MUSZĘ ZAPŁACIĆ ${myShare.amount.toFixed(2)} zł`;
@@ -499,6 +504,7 @@ const App: React.FC = () => {
                 </div>
               );
             })}
+            );
           </div>
         );
 
@@ -1057,7 +1063,7 @@ const App: React.FC = () => {
                         <strong>{payer?.email}</strong>
                       </div>
 
-                      {myShare && myShare.amount > 0 ? (
+                      {myShare && !isMySharePaid(selectedExpense.id) ? (
                         <button
                           className="primary-btn"
                           onClick={() => handlePay(selectedExpense.id, myShare)}
