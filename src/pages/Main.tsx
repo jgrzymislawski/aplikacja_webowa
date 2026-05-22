@@ -306,6 +306,7 @@ const App: React.FC = () => {
     try {
       await payMyPart(expenseId, myShare.amount);
       await loadExpenses();
+
       closeDetails();
     } catch (e) {
       console.error(e);
