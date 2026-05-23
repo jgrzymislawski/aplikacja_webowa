@@ -74,6 +74,9 @@ export default function Register() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
+          <p style={{ fontSize: "12px", color: "#999", margin: "4px 0 12px 0" }}>
+              Musi zawierać wielką literę, cyfrę i znak specjalny
+          </p>
           <input
             type="password"
             placeholder="Powtórz hasło"

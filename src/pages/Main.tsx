@@ -615,7 +615,12 @@ const App: React.FC = () => {
                 <div className="expense-card-header">
                   <h3>Zmień hasło</h3>
                 </div>
-
+                <p className="expense-meta" style={{ marginBottom: "12px", fontSize: "12px" }}>
+                Hasło musi zawierać co najmniej:
+    <br />• Jedną wielką literę (A-Z)
+    <br />• Jeden znak specjalny (!@#$%^&*)
+    <br />• Jedną cyfrę (0-9)
+  </p>
                 <form className="settings-form">
                   <input
                     type="password"
